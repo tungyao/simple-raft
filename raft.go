@@ -24,13 +24,14 @@ type Raft struct {
 }
 
 type Node struct {
-	Addr      string         // 主机地址
-	Rate      uint8          // 投票倍率 这个值一般可以忽略
-	Id        string         // 主机标识
-	Leader    *leaderNode    // 作为领导的操作
-	Candidate *candidateNode // 作为候选者的操作
-	Follower  *follower      // 作为跟随着的操作
-	Net       *network       // 网络相关的操作
+	Addr             string         // 主机地址
+	Rate             uint8          // 投票倍率 这个值一般可以忽略
+	Id               string         // 主机标识
+	Leader           *leaderNode    // 作为领导的操作
+	Candidate        *candidateNode // 作为候选者的操作
+	Follower         *followerNode  // 作为跟随着的操作
+	Net              *network       // 网络相关的操作
+	CommunityTimeOut uint16         // 接受leader的心跳超时时间
 }
 
 // NewNode 建立一个节点
