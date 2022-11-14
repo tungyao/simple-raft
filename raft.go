@@ -18,7 +18,24 @@ package simple_raft
 // 实现的要求
 // 简单和易于阅读 去除不必要的方法 接口
 
-type raft struct {
-	addr string // rpc通讯地址
-	id   string // 主机标识
+type Raft struct {
+	addr []*Node // rpc通讯地址
+	id   string  // 主机标识
+}
+
+type Node struct {
+	Addr      string         // 主机地址
+	Rate      uint8          // 投票倍率 这个值一般可以忽略
+	Id        string         // 主机标识
+	Leader    *leaderNode    // 作为领导的操作
+	Candidate *candidateNode // 作为候选者的操作
+	Follower  *follower      // 作为跟随着的操作
+	Net       *network       // 网络相关的操作
+}
+
+// NewNode 建立一个节点
+// 同时要提供其他节点的通讯地址
+func NewNode(selfId string, node []*Node) *Raft {
+	rf := new(Raft)
+	return rf
 }
