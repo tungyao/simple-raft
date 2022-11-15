@@ -12,18 +12,18 @@ type heapMax struct {
 }
 
 func NewHeap(size int) heap {
-	var hp heap = &heapMax{node: make([]int, size)}
+	var hp heap = &heapMax{node: make([]int, size+1), heapSize: size}
 	return hp
 }
 
-// 添加一个新元素
+// Add 添加一个新元素
 // 最大堆
 func (h *heapMax) Add(key int) int {
 	h.realSize += 1
 	if h.realSize > h.heapSize {
 		return -1
 	}
-	h.node[h.heapSize] = key
+	h.node[h.realSize] = key
 	index := h.realSize
 	parent := index / 2
 	for h.node[index] > h.node[parent] && index > 1 {
@@ -34,7 +34,7 @@ func (h *heapMax) Add(key int) int {
 	return index
 }
 
-// 弹出一个元素
+// Pop 弹出一个元素
 func (h *heapMax) Pop() int {
 	if h.realSize < 1 {
 		return -1
@@ -57,11 +57,11 @@ func (h *heapMax) Pop() int {
 				h.node[index], h.node[right] = h.node[right], h.node[index]
 				index = right
 			}
-		}else{
+		} else {
 			break
 		}
 
 	}
 
-	return 0
+	return removeEl
 }
