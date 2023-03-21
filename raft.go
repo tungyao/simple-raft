@@ -15,6 +15,10 @@
 
 package simple_raft
 
+import (
+	"time"
+)
+
 // 实现的要求
 // 简单和易于阅读 去除不必要的方法 接口
 
@@ -23,19 +27,61 @@ type Raft struct {
 	id   string  // 主机标识
 }
 
+const (
+	Follower = iota
+	Candidate
+	Leader
+)
+
+// Node 部署每一个主机
 type Node struct {
-	Addr      string         // 主机地址
-	Rate      uint8          // 投票倍率 这个值一般可以忽略
-	Id        string         // 主机标识
-	Leader    *leaderNode    // 作为领导的操作
-	Candidate *candidateNode // 作为候选者的操作
-	Follower  *follower      // 作为跟随着的操作
-	Net       *network       // 网络相关的操作
+	Addr         string // 主机地址
+	Rate         uint8  // 投票倍率 这个值一般可以忽略
+	Id           string // 主机标识
+	Status       int
+	Net          *network // 网络相关的操作
+	Timeout      int      // 心跳间隔
+	LastLoseTime int64    // 上次收到心跳时间
 }
+
+func (n *Node) Change() {
+	//switch n.Status {
+	//case Follower:
+	//	n.Follower
+	//case Leader:
+	//	n.Leader
+	//case Candidate:
+	//	n.Candidate
+	//}
+
+}
+
+var pipe chan *Node
 
 // NewNode 建立一个节点
 // 同时要提供其他节点的通讯地址
 func NewNode(selfId string, node []*Node) *Raft {
+	pipe = make(chan *Node, 1)
 	rf := new(Raft)
+	var selfNode *Node
+	for _, v := range node {
+		if v.Id == selfId {
+			selfNode = v
+			break
+		}
+	}
+
+	fo := &follower{}
+
+	ca := &candidate{}
+
+	le := &leader{}
+	go Hub(le, ca, fo)
+	go func() {
+		time.Sleep(time.Second * 2)
+		pipe <- selfNode
+
+	}()
+	time.Sleep(time.Second * 10)
 	return rf
 }
