@@ -66,3 +66,8 @@ func (ne *network) VoteRequest(node *Node) int {
 	log.Printf("进入选举模式: vote: %d ,term: %d ,logindex: %d \n", node.Vote, node.TermIndex, node.LogIndex)
 	return rand.Intn(2)
 }
+
+// HeartRequest 向其他节点发送心跳
+func (ne *network) HeartRequest(nodes []*Node) {
+
+}

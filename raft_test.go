@@ -1,8 +1,11 @@
 package simple_raft
 
 import (
-	"fmt"
+	"log"
+	"math/rand"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestNewNode(t *testing.T) {
@@ -75,5 +78,38 @@ func TestNewNode(t *testing.T) {
 	})
 }
 func TestItoa(t *testing.T) {
-	fmt.Println(16 & 4)
+	var a int32 = 1
+	go func() {
+		atomic.AddInt32(&a, 1)
+		log.Println(a)
+	}()
+	go func() {
+		atomic.AddInt32(&a, 1)
+		log.Println(a)
+	}()
+	atomic.AddInt32(&a, 1)
+	log.Println(a)
+	time.Sleep(time.Hour)
+}
+func TestSelect(t *testing.T) {
+	ch := make(chan int)
+	for {
+		select {
+		case <-time.After(time.Second * 3):
+			log.Println("second")
+			go func() {
+				ch <- rand.Intn(3)
+			}()
+		case n := <-ch:
+			switch n {
+			case 1:
+				log.Println("1", n)
+				go func() {
+
+				}()
+			case 2:
+				log.Println("2", n)
+			}
+		}
+	}
 }

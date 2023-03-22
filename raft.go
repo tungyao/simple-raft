@@ -91,6 +91,8 @@ func NewNode(selfId string, node []*Node) *Raft {
 			}
 		case n := <-selfNode.Channel:
 			if n == Candidate {
+				// 补充候选者状态
+				selfNode.Status = Candidate
 				// 选举超时
 				elecTimeout := make(chan int)
 				ctx, cancel := context.WithCancel(context.Background())
@@ -99,24 +101,32 @@ func NewNode(selfId string, node []*Node) *Raft {
 					case <-time.After(time.Millisecond * time.Duration(rand.Intn(200))):
 						<-elecTimeout
 					case <-ctx.Done():
-
+						log.Println("获得了选票")
 					}
 				}(cancel)
 
 				selfNode.TermIndex += 1
 				vote := selfNode.Net.VoteRequest(selfNode)
-				atomic.AddInt32(&selfNode.Vote, 1)
+				atomic.AddInt32(&selfNode.Vote, int32(vote))
 				log.Println("获取票:", vote)
 				// 取消选举定时
 				cancel()
 				if selfNode.Vote >= int32(len(node)/2+1) {
 					log.Println(selfNode.Id, "总共获取", vote, "超过", int32(len(node)/2+1))
+					// 进入领导者状态
+					selfNode.Status = Leader
+					selfNode.Channel <- Leader
+
 				}
-				selfNode.Status = Candidate
+				log.Println("没有获取到足够的票")
 				// 如果获取到了 2n+1的票则成为leader
 			} else if n == Leader {
-
+				// 向其他人发送心跳并接受到心跳
+				selfNode.Net.HeartRequest(node)
+				// tcp流是复用的
 			} else {
+				// 最后是跟随者
+				// 只需要投票
 
 			}
 
