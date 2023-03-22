@@ -6,7 +6,54 @@ import (
 )
 
 func TestNewNode(t *testing.T) {
-	NewNode("111", []*Node{
+	//
+	//go func() {
+	//	NewNode("111", []*Node{
+	//		&Node{
+	//			Addr:    "1",
+	//			Rate:    0,
+	//			Id:      "111",
+	//			Timeout: 100,
+	//		},
+	//		&Node{
+	//			Addr:    "2",
+	//			Rate:    0,
+	//			Id:      "222",
+	//			Timeout: 200,
+	//		},
+	//		&Node{
+	//			Addr:    "3",
+	//			Rate:    0,
+	//			Id:      "333",
+	//			Timeout: 50,
+	//		},
+	//	})
+	//}()
+	//
+	//go func() {
+	//	NewNode("222", []*Node{
+	//		&Node{
+	//			Addr:    "1",
+	//			Rate:    0,
+	//			Id:      "111",
+	//			Timeout: 100,
+	//		},
+	//		&Node{
+	//			Addr:    "2",
+	//			Rate:    0,
+	//			Id:      "222",
+	//			Timeout: 200,
+	//		},
+	//		&Node{
+	//			Addr:    "3",
+	//			Rate:    0,
+	//			Id:      "333",
+	//			Timeout: 50,
+	//		},
+	//	})
+	//}()
+
+	NewNode("222", []*Node{
 		&Node{
 			Addr:    "1",
 			Rate:    0,

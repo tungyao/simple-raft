@@ -16,6 +16,10 @@
 package simple_raft
 
 import (
+	"context"
+	"log"
+	"math/rand"
+	"sync/atomic"
 	"time"
 )
 
@@ -42,6 +46,11 @@ type Node struct {
 	Net          *network // 网络相关的操作
 	Timeout      int      // 心跳间隔
 	LastLoseTime int64    // 上次收到心跳时间
+	Channel      chan int
+	Vote         int32
+	Message      chan string
+	LogIndex     int64
+	TermIndex    int64
 }
 
 func (n *Node) Change() {
@@ -70,18 +79,51 @@ func NewNode(selfId string, node []*Node) *Raft {
 			break
 		}
 	}
+	// 进入正式的流程
+	selfNode.Status = Follower
+	selfNode.Channel = make(chan int, 1)
+	for {
+		select {
+		case <-time.After(time.Second):
+			if selfNode.Status == Follower {
+				// 进入选举流程
+				selfNode.Channel <- Candidate
+			}
+		case n := <-selfNode.Channel:
+			if n == Candidate {
+				// 选举超时
+				elecTimeout := make(chan int)
+				ctx, cancel := context.WithCancel(context.Background())
+				go func(cancel context.CancelFunc) {
+					select {
+					case <-time.After(time.Millisecond * time.Duration(rand.Intn(200))):
+						<-elecTimeout
+					case <-ctx.Done():
 
-	fo := &follower{}
+					}
+				}(cancel)
 
-	ca := &candidate{}
+				selfNode.TermIndex += 1
+				vote := selfNode.Net.VoteRequest(selfNode)
+				atomic.AddInt32(&selfNode.Vote, 1)
+				log.Println("获取票:", vote)
+				// 取消选举定时
+				cancel()
+				if selfNode.Vote >= int32(len(node)/2+1) {
+					log.Println(selfNode.Id, "总共获取", vote, "超过", int32(len(node)/2+1))
+				}
+				selfNode.Status = Candidate
+				// 如果获取到了 2n+1的票则成为leader
+			} else if n == Leader {
 
-	le := &leader{}
-	go Hub(le, ca, fo)
-	go func() {
-		time.Sleep(time.Second * 2)
-		pipe <- selfNode
+			} else {
 
-	}()
-	time.Sleep(time.Second * 10)
+			}
+
+		}
+	}
+
 	return rf
 }
+
+// 日志

@@ -1,6 +1,10 @@
 package simple_raft
 
-import "log"
+import (
+	"log"
+	"math/rand"
+	"net"
+)
 
 // 换一种思路
 // 在本地维护多个角色 当时node移交到哪个角色上时 就使用那些方法
@@ -42,12 +46,23 @@ func (fo *follower) Run() {
 	}
 }
 
+// 仅是做测试一用
 type network struct {
+	Address string
 }
 
-func (net *network) Run() {
+func (ne *network) Run() {
+	_, err := net.Listen("tcp", ne.Address)
+	if err != nil {
+		return
+	}
+}
+func (ne *network) Req() {
 
 }
-func (net *network) Req() {
 
+// VoteRequest 发送自己的
+func (ne *network) VoteRequest(node *Node) int {
+	log.Printf("进入选举模式: vote: %d ,term: %d ,logindex: %d \n", node.Vote, node.TermIndex, node.LogIndex)
+	return rand.Intn(2)
 }
