@@ -71,3 +71,7 @@ func (ne *network) VoteRequest(node *Node) int {
 func (ne *network) HeartRequest(nodes []*Node) {
 
 }
+
+func (ne *network) VoteResponse() {
+
+}

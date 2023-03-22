@@ -127,7 +127,7 @@ func NewNode(selfId string, node []*Node) *Raft {
 			} else {
 				// 最后是跟随者
 				// 只需要投票
-
+				selfNode.Net.VoteResponse()
 			}
 
 		}
