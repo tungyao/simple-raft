@@ -51,6 +51,7 @@ type Node struct {
 	Message      chan string
 	LogIndex     int64
 	TermIndex    int64
+	IsVote       bool // 在当前任期是不是已经投了票
 }
 
 func (n *Node) Change() {
@@ -82,6 +83,7 @@ func NewNode(selfId string, node []*Node) *Raft {
 	// 进入正式的流程
 	selfNode.Status = Follower
 	selfNode.Channel = make(chan int, 1)
+	selfNode.Net = &network{self: selfNode}
 	for {
 		select {
 		case <-time.After(time.Second):

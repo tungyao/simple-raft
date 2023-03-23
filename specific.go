@@ -1,6 +1,7 @@
 package simple_raft
 
 import (
+	"io"
 	"log"
 	"math/rand"
 	"net"
@@ -48,13 +49,43 @@ func (fo *follower) Run() {
 
 // 仅是做测试一用
 type network struct {
+	self    *Node
 	Address string
+	Rece    chan []byte
+	Send    chan []byte
 }
 
 func (ne *network) Run() {
-	_, err := net.Listen("tcp", ne.Address)
+	lis, err := net.Listen("tcp", ne.Address)
 	if err != nil {
 		return
+	}
+	for {
+		conn, err := lis.Accept()
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		go func(connInner net.Conn) {
+			go func() {
+				for {
+					data, err := io.ReadAll(connInner)
+					if err != nil {
+						log.Println(err)
+					}
+					ne.Rece <- data
+				}
+			}()
+
+			for {
+				select {
+				case data := <-ne.Send:
+					connInner.Write(data)
+
+				}
+			}
+
+		}(conn)
 	}
 }
 func (ne *network) Req() {
@@ -69,9 +100,16 @@ func (ne *network) VoteRequest(node *Node) int {
 
 // HeartRequest 向其他节点发送心跳
 func (ne *network) HeartRequest(nodes []*Node) {
-
+	for _, v := range nodes {
+		if v.Id != ne.self.Id {
+			log.Println("向", v.Id, "发送心跳")
+		}
+	}
 }
 
 func (ne *network) VoteResponse() {
-
+	// 在一轮任期 只能投一次票
+	if ne.self.IsVote == false {
+		ne.Send <- []byte("yes")
+	}
 }
