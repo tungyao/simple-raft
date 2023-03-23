@@ -113,3 +113,5 @@ func TestSelect(t *testing.T) {
 		}
 	}
 }
+
+// test pgp signed
