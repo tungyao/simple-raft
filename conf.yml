@@ -1,0 +1,7 @@
+
+  - id: node1
+    address: 127.0.0.1:3000
+  - id: node2
+    address: 127.0.0.1:3001
+  - id: node3
+    address: 127.0.0.1:3002

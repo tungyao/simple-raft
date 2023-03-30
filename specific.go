@@ -1,10 +1,9 @@
 package simple_raft
 
 import (
-	"io"
 	"log"
-	"math/rand"
 	"net"
+	"time"
 )
 
 // 换一种思路
@@ -49,17 +48,47 @@ func (fo *follower) Run() {
 
 // 仅是做测试一用
 type network struct {
-	self    *Node
-	Address string
-	Rece    chan []byte
-	Send    chan []byte
+	self         *Node
+	Address      string
+	Rece         chan []byte
+	Send         chan []byte
+	WaitVote     chan int
+	WaitVoteCode uint8
 }
 
+// In fact , there's a node list in program
+// so, Reload from the yaml file
+
+// 协议 按照byte=8位
+// 1 | 2          | 3           | 4           |
+//  是否接续上一报文   操作码
+//                   0 发送心跳
+//                   1 请求票       应该回应编号
+//                   2 回应票
+
 func (ne *network) Run() {
-	lis, err := net.Listen("tcp", ne.Address)
+	ne.Rece = make(chan []byte, 512)
+	ne.Send = make(chan []byte, 512)
+	ne.WaitVote = make(chan int)
+	lis, err := net.Listen("tcp", ne.self.Addr)
 	if err != nil {
+		log.Println(err)
 		return
 	}
+	go func() {
+		for {
+			select {
+			case r := <-ne.Rece:
+				log.Println(r)
+				// 发回等待的
+				if r[3] == 0x2 && r[4] == ne.WaitVoteCode {
+					ne.WaitVote <- 1
+				}
+			case s := <-ne.Send:
+				log.Println(s)
+			}
+		}
+	}()
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
@@ -69,33 +98,33 @@ func (ne *network) Run() {
 		go func(connInner net.Conn) {
 			go func() {
 				for {
-					data, err := io.ReadAll(connInner)
-					if err != nil {
-						log.Println(err)
-					}
-					ne.Rece <- data
+					data := <-ne.Send
+					connInner.Write(data)
 				}
 			}()
-
 			for {
-				select {
-				case data := <-ne.Send:
-					connInner.Write(data)
-
-				}
+				var data = make([]byte, 1024)
+				n, _ := connInner.Read(data)
+				ne.Rece <- data[:n]
 			}
 
 		}(conn)
 	}
 }
-func (ne *network) Req() {
-
-}
 
 // VoteRequest 发送自己的
 func (ne *network) VoteRequest(node *Node) int {
-	log.Printf("进入选举模式: vote: %d ,term: %d ,logindex: %d \n", node.Vote, node.TermIndex, node.LogIndex)
-	return rand.Intn(2)
+
+	ne.Send <- []byte{0, 0, 1, 128}
+	ne.WaitVoteCode = 128
+	// 进入等待
+	select {
+	case <-time.After(time.Second * 10):
+
+	case v := <-ne.WaitVote:
+		return v
+	}
+	return 0
 }
 
 // HeartRequest 向其他节点发送心跳

@@ -17,8 +17,11 @@ package simple_raft
 
 import (
 	"context"
+	"gopkg.in/yaml.v2"
+	"io"
 	"log"
 	"math/rand"
+	"os"
 	"sync/atomic"
 	"time"
 )
@@ -39,9 +42,9 @@ const (
 
 // Node 部署每一个主机
 type Node struct {
-	Addr         string // 主机地址
+	Addr         string `yaml:"addr"` // 主机地址
 	Rate         uint8  // 投票倍率 这个值一般可以忽略
-	Id           string // 主机标识
+	Id           string `yaml:"id"` // 主机标识
 	Status       int
 	Net          *network // 网络相关的操作
 	Timeout      int      // 心跳间隔
@@ -67,75 +70,84 @@ func (n *Node) Change() {
 }
 
 var pipe chan *Node
+var allNode []*Node
 
 // NewNode 建立一个节点
 // 同时要提供其他节点的通讯地址
-func NewNode(selfId string, node []*Node) *Raft {
+func NewNode(selfNode *Node) {
 	pipe = make(chan *Node, 1)
-	rf := new(Raft)
-	var selfNode *Node
-	for _, v := range node {
-		if v.Id == selfId {
-			selfNode = v
-			break
-		}
+	allNode = make([]*Node, 0)
+	fs, err := os.Open("conf.yml")
+	data, err := io.ReadAll(fs)
+	if err != nil {
+		log.Fatalf("无法读取YAML文件：%v", err)
 	}
+	defer fs.Close()
+
+	// 将YAML数据反序列化为结构体
+	err = yaml.Unmarshal(data, &allNode)
+	if err != nil {
+		log.Fatalf("无法反序列化YAML数据：%v", err)
+	}
+	log.Println(allNode)
 	// 进入正式的流程
 	selfNode.Status = Follower
 	selfNode.Channel = make(chan int, 1)
 	selfNode.Net = &network{self: selfNode}
-	for {
-		select {
-		case <-time.After(time.Second):
-			if selfNode.Status == Follower {
-				// 进入选举流程
-				selfNode.Channel <- Candidate
-			}
-		case n := <-selfNode.Channel:
-			if n == Candidate {
-				// 补充候选者状态
-				selfNode.Status = Candidate
-				// 选举超时
-				elecTimeout := make(chan int)
-				ctx, cancel := context.WithCancel(context.Background())
-				go func(cancel context.CancelFunc) {
-					select {
-					case <-time.After(time.Millisecond * time.Duration(rand.Intn(200))):
-						<-elecTimeout
-					case <-ctx.Done():
-						log.Println("获得了选票")
-					}
-				}(cancel)
-
-				selfNode.TermIndex += 1
-				vote := selfNode.Net.VoteRequest(selfNode)
-				atomic.AddInt32(&selfNode.Vote, int32(vote))
-				log.Println("获取票:", vote)
-				// 取消选举定时
-				cancel()
-				if selfNode.Vote >= int32(len(node)/2+1) {
-					log.Println(selfNode.Id, "总共获取", vote, "超过", int32(len(node)/2+1))
-					// 进入领导者状态
-					selfNode.Status = Leader
-					selfNode.Channel <- Leader
-
+	go func() {
+		for {
+			select {
+			case <-time.After(time.Second):
+				if selfNode.Status == Follower {
+					// 进入选举流程
+					selfNode.Channel <- Candidate
 				}
-				log.Println("没有获取到足够的票")
-				// 如果获取到了 2n+1的票则成为leader
-			} else if n == Leader {
-				// 向其他人发送心跳并接受到心跳
-				selfNode.Net.HeartRequest(node)
-				// tcp流是复用的
-			} else {
-				// 最后是跟随者
-				// 只需要投票
-				selfNode.Net.VoteResponse()
+			case n := <-selfNode.Channel:
+				if n == Candidate {
+					// 补充候选者状态
+					selfNode.Status = Candidate
+					// 选举超时
+					elecTimeout := make(chan int)
+					ctx, cancel := context.WithCancel(context.Background())
+					go func(cancel context.CancelFunc) {
+						select {
+						case <-time.After(time.Millisecond * time.Duration(rand.Intn(200))):
+							<-elecTimeout
+						case <-ctx.Done():
+							log.Println("获得了选票")
+						}
+					}(cancel)
+
+					selfNode.TermIndex += 1
+					// 协程等待
+					vote := selfNode.Net.VoteRequest(selfNode)
+					atomic.AddInt32(&selfNode.Vote, int32(vote))
+					log.Println("获取票:", vote)
+					// 取消选举定时
+					cancel()
+					if selfNode.Vote >= int32(len(allNode)/2+1) {
+						log.Println(selfNode.Id, "总共获取", vote, "超过", int32(len(allNode)/2+1))
+						// 进入领导者状态
+						selfNode.Status = Leader
+						selfNode.Channel <- Leader
+
+					}
+					log.Println("没有获取到足够的票")
+					// 如果获取到了 2n+1的票则成为leader
+				} else if n == Leader {
+					// 向其他人发送心跳并接受到心跳
+
+					selfNode.Net.HeartRequest(allNode)
+					// tcp流是复用的
+				} else {
+					// 最后是跟随者
+					// 只需要投票
+					selfNode.Net.VoteResponse()
+				}
+
 			}
-
 		}
-	}
-
-	return rf
+	}()
 }
 
 // 日志

@@ -55,27 +55,6 @@ func TestNewNode(t *testing.T) {
 	//		},
 	//	})
 	//}()
-
-	NewNode("222", []*Node{
-		&Node{
-			Addr:    "1",
-			Rate:    0,
-			Id:      "111",
-			Timeout: 100,
-		},
-		&Node{
-			Addr:    "2",
-			Rate:    0,
-			Id:      "222",
-			Timeout: 200,
-		},
-		&Node{
-			Addr:    "3",
-			Rate:    0,
-			Id:      "333",
-			Timeout: 50,
-		},
-	})
 }
 func TestItoa(t *testing.T) {
 	var a int32 = 1
@@ -114,4 +93,28 @@ func TestSelect(t *testing.T) {
 	}
 }
 
-// test pgp signed
+func TestNode1(t *testing.T) {
+	node := &Node{
+		Addr:         "127.0.0.1:3000",
+		Rate:         0,
+		Id:           "1",
+		Status:       0,
+		Net:          new(network),
+		Timeout:      100,
+		LastLoseTime: 0,
+		Channel:      nil,
+		Vote:         0,
+		Message:      nil,
+		LogIndex:     0,
+		TermIndex:    0,
+		IsVote:       false,
+	}
+	NewNode(node)
+	node.Net.Run()
+}
+func TestNode2(t *testing.T) {
+
+}
+func TestNode3(t *testing.T) {
+
+}
