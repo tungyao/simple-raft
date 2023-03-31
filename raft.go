@@ -52,9 +52,10 @@ type Node struct {
 	Channel      chan int
 	Vote         int32
 	Message      chan string
-	LogIndex     int64
-	TermIndex    int64
+	LogIndex     uint64
+	TermIndex    uint64
 	IsVote       bool // 在当前任期是不是已经投了票
+
 }
 
 func (n *Node) Change() {
@@ -123,6 +124,7 @@ func NewNode(selfNode *Node) {
 					vote := selfNode.Net.VoteRequest(selfNode)
 					atomic.AddInt32(&selfNode.Vote, int32(vote))
 					log.Println("获取票:", vote)
+
 					// 取消选举定时
 					cancel()
 					if selfNode.Vote >= int32(len(allNode)/2+1) {
