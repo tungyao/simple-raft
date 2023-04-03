@@ -17,12 +17,13 @@ package simple_raft
 
 import (
 	"context"
+	"github.com/tungyao/simple-raft/pb"
+	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
 	"io"
 	"log"
-	"math/rand"
 	"os"
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
@@ -50,7 +51,6 @@ type Node struct {
 	Timeout      int      // 心跳间隔
 	LastLoseTime int64    // 上次收到心跳时间
 	Channel      chan int
-	Vote         int32
 	Message      chan string
 	LogIndex     uint64
 	TermIndex    uint64
@@ -70,13 +70,12 @@ func (n *Node) Change() {
 
 }
 
-var pipe chan *Node
 var allNode []*Node
+var mux sync.Mutex
 
 // NewNode 建立一个节点
 // 同时要提供其他节点的通讯地址
 func NewNode(selfNode *Node) {
-	pipe = make(chan *Node, 1)
 	allNode = make([]*Node, 0)
 	fs, err := os.Open("conf.yml")
 	data, err := io.ReadAll(fs)
@@ -95,56 +94,71 @@ func NewNode(selfNode *Node) {
 	selfNode.Status = Follower
 	selfNode.Channel = make(chan int, 1)
 	selfNode.Net = &network{self: selfNode}
+	go StartRpc(selfNode)
 	go func() {
 		for {
 			select {
 			case <-time.After(time.Second):
 				if selfNode.Status == Follower {
 					// 进入选举流程
+					mux.Lock()
 					selfNode.Channel <- Candidate
+					mux.Unlock()
 				}
 			case n := <-selfNode.Channel:
 				if n == Candidate {
-					// 补充候选者状态
+					mux.Lock()
+					// 补充候选者状态 应该暂停其他网络请求
 					selfNode.Status = Candidate
-					// 选举超时
-					elecTimeout := make(chan int)
-					ctx, cancel := context.WithCancel(context.Background())
-					go func(cancel context.CancelFunc) {
-						select {
-						case <-time.After(time.Millisecond * time.Duration(rand.Intn(200))):
-							<-elecTimeout
-						case <-ctx.Done():
-							log.Println("获得了选票")
-						}
-					}(cancel)
-
 					selfNode.TermIndex += 1
-					// 协程等待
-					vote := selfNode.Net.VoteRequest(selfNode)
-					atomic.AddInt32(&selfNode.Vote, int32(vote))
-					log.Println("获取票:", vote)
-
-					// 取消选举定时
-					cancel()
-					if selfNode.Vote >= int32(len(allNode)/2+1) {
-						log.Println(selfNode.Id, "总共获取", vote, "超过", int32(len(allNode)/2+1))
-						// 进入领导者状态
-						selfNode.Status = Leader
-						selfNode.Channel <- Leader
+					var group sync.WaitGroup
+					var replyData = make([]*pb.VoteReplyData, 0, len(allNode))
+					group.Add(len(allNode))
+					for _, node := range allNode {
+						n := node
+						go func() {
+							defer group.Done()
+							conn, err := grpc.Dial(n.Addr)
+							if err != nil {
+								log.Printf("did not connect: %v\n", err)
+								return
+							}
+							defer conn.Close()
+							clt := pb.NewVoteClient(conn)
+							reply, err := clt.VoteRequest(context.Background(), &pb.VoteRequestData{
+								TermIndex: selfNode.TermIndex,
+								LogIndex:  selfNode.LogIndex,
+							})
+							replyData = append(replyData, reply)
+						}()
 
 					}
-					log.Println("没有获取到足够的票")
+					group.Wait()
+					// 向其他几点发送投票请求
+					var v uint32
+					// 统计获得票
+					for _, datum := range replyData {
+						if datum != nil {
+							v += datum.Get
+						}
+					}
+					if v >= uint32(len(allNode)/2+1) {
+						log.Println(selfNode.Id, "总共获取", v, "超过", uint32(len(allNode)/2+1))
+						// 进入领导者状态
+						selfNode.Status = Leader
+						mux.Unlock()
+						selfNode.Channel <- Leader
+
+					} else {
+						mux.Unlock()
+					}
 					// 如果获取到了 2n+1的票则成为leader
 				} else if n == Leader {
 					// 向其他人发送心跳并接受到心跳
-
 					selfNode.Net.HeartRequest(allNode)
 					// tcp流是复用的
 				} else {
 					// 最后是跟随者
-					// 只需要投票
-					selfNode.Net.VoteResponse()
 				}
 
 			}

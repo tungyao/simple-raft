@@ -3,67 +3,18 @@ package simple_raft
 import (
 	"log"
 	"net"
-	"sync"
-	"time"
 	"unsafe"
 )
 
 // 换一种思路
 // 在本地维护多个角色 当时node移交到哪个角色上时 就使用那些方法
 
-func Hub(leader2 *leader, candidate2 *candidate, follower2 *follower) {
-
-}
-
-type leader struct {
-}
-
-func (le *leader) Run() {
-	select {
-	case <-pipe:
-		log.Println(1)
-	}
-}
-
-type candidate struct {
-}
-
-func (ca *candidate) Run() {
-
-}
-
-type follower struct {
-	Vote int   // 自己有多少票
-	Node *Node // Node节点
-}
-
-func (fo *follower) Run() {
-	select {
-	case n := <-pipe:
-		log.Println(2)
-
-		if n.Status&Follower == Follower {
-
-		}
-	}
-}
-
-// 仅是做测试一用
+// 网络相关的东西
 type network struct {
-	self         *Node
-	Address      string
-	Rece         chan []byte
-	Send         chan []byte
-	WaitVote     chan *WaitVoteData
-	WaitVoteCode uint8
-	Net          net.Conn
-}
-
-// WaitVoteData 接受到的投票数据
-type WaitVoteData struct {
-	Number   uint8  // 回复编号
-	Term     uint64 // 发来的任期编号
-	LogIndex uint64 // 日志的索引
+	self    *Node
+	Address string
+	Rece    chan []byte
+	Send    chan []byte
 }
 
 // In fact , there's a node list in program
@@ -79,7 +30,6 @@ type WaitVoteData struct {
 func (ne *network) Run() {
 	ne.Rece = make(chan []byte, 512)
 	ne.Send = make(chan []byte, 512)
-	ne.WaitVote = make(chan *WaitVoteData)
 	lis, err := net.Listen("tcp", ne.self.Addr)
 	if err != nil {
 		log.Println(err)
@@ -90,14 +40,6 @@ func (ne *network) Run() {
 			select {
 			case r := <-ne.Rece:
 				log.Println(r)
-
-
-				// 进入投票模式
-				if r[3] == 0x2 && r[4] == ne.WaitVoteCode {
-					term := uint82Uint64(r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12])
-					logIndex := uint82Uint64(r[13], r[14], r[15], r[16], r[17], r[18], r[19], r[20])
-					ne.WaitVote <- &WaitVoteData{Number: r[4], Term: term, LogIndex: logIndex}
-				}
 			case s := <-ne.Send:
 				log.Println(s)
 			}
@@ -132,24 +74,6 @@ func (ne *network) Run() {
 	}
 }
 
-// VoteRequest 发起投票
-func (ne *network) VoteRequest(node *Node) int {
-
-	ne.Send <- []byte{0, 0, 1, 128}
-	ne.WaitVoteCode = 128
-	// 向其他node发送选票请求
-	var group sync.WaitGroup
-	group.Add(len(allNode))
-	for _, v := range allNode {
-		nd := v
-		go func() {
-			nd.Net.Send <-
-		}()
-		// TODO 这里有个前置条件 需要保存每一个node的连接标识
-	}
-	return 0
-}
-
 // HeartRequest 向其他节点发送心跳
 func (ne *network) HeartRequest(nodes []*Node) {
 	for _, v := range nodes {
@@ -158,22 +82,6 @@ func (ne *network) HeartRequest(nodes []*Node) {
 			log.Println("向", v.Id, "发送心跳")
 		}
 	}
-}
-
-func (ne *network) VoteResponse() int {
-	//TODO 在这里处理投票的逻辑 主要是对比任期和日志最大的编号 而且在一个任期内只能投一次
-	select {
-	case <-time.After(time.Second * 10):
-
-	case v := <-ne.WaitVote:
-		log.Println(v)
-		if ne.self.IsVote == false && v.LogIndex > ne.self.LogIndex && v.Term > ne.self.TermIndex {
-			return 1
-		}
-		return 0
-	}
-	return 0
-
 }
 
 func uint82Uint64[T int | uint8](r ...T) uint64 {

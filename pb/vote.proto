@@ -1,0 +1,19 @@
+syntax = "proto3";
+package pb;
+option go_package = "/pb";
+// 负责处理各种rpc请求
+//+ build
+// protoc --go_out=. --go-grpc_out=. pb/vote.proto
+
+// 选举请求
+service Vote {
+  rpc VoteRequest(VoteRequestData) returns (VoteReplyData){}
+}
+
+message VoteRequestData {
+  uint64  term_index = 1; // 本机的任期号
+  uint64  log_index = 2;  // 本机的最高日志编号
+}
+message VoteReplyData{
+  uint32 get = 1;
+}
