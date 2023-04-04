@@ -19,6 +19,7 @@ import (
 	"context"
 	"github.com/tungyao/simple-raft/pb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"gopkg.in/yaml.v2"
 	"io"
 	"log"
@@ -55,7 +56,7 @@ type Node struct {
 	LogIndex     uint64
 	TermIndex    uint64
 	IsVote       bool // 在当前任期是不是已经投了票
-
+	Timer        *timer
 }
 
 func (n *Node) Change() {
@@ -69,6 +70,9 @@ func (n *Node) Change() {
 	//}
 
 }
+func init() {
+	log.SetFlags(log.Llongfile)
+}
 
 var allNode []*Node
 var mux sync.Mutex
@@ -79,6 +83,9 @@ func NewNode(selfNode *Node) {
 	allNode = make([]*Node, 0)
 	fs, err := os.Open("conf.yml")
 	data, err := io.ReadAll(fs)
+
+	selfNode.Net.self = selfNode
+	selfNode.Timer.self = selfNode
 	if err != nil {
 		log.Fatalf("无法读取YAML文件：%v", err)
 	}
@@ -98,16 +105,18 @@ func NewNode(selfNode *Node) {
 	go func() {
 		for {
 			select {
-			case <-time.After(time.Second):
+			// TODO 应该有个全局的定时器，
+			// TODO 这里要处理心跳和超时处理
+			case <-selfNode.Timer.Ticker:
 				if selfNode.Status == Follower {
 					// 进入选举流程
-					mux.Lock()
 					selfNode.Channel <- Candidate
-					mux.Unlock()
 				}
 			case n := <-selfNode.Channel:
+				log.Println("接受到channel", n)
 				if n == Candidate {
 					mux.Lock()
+					log.Println("进入候选者状态")
 					// 补充候选者状态 应该暂停其他网络请求
 					selfNode.Status = Candidate
 					selfNode.TermIndex += 1
@@ -118,14 +127,18 @@ func NewNode(selfNode *Node) {
 						n := node
 						go func() {
 							defer group.Done()
-							conn, err := grpc.Dial(n.Addr)
+							// 超时处理
+							ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+							defer cancel()
+							conn, err := grpc.DialContext(ctx, n.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 							if err != nil {
 								log.Printf("did not connect: %v\n", err)
 								return
 							}
 							defer conn.Close()
+
 							clt := pb.NewVoteClient(conn)
-							reply, err := clt.VoteRequest(context.Background(), &pb.VoteRequestData{
+							reply, err := clt.VoteRequest(ctx, &pb.VoteRequestData{
 								TermIndex: selfNode.TermIndex,
 								LogIndex:  selfNode.LogIndex,
 							})
@@ -142,6 +155,7 @@ func NewNode(selfNode *Node) {
 							v += datum.Get
 						}
 					}
+					log.Println("统计票", v)
 					if v >= uint32(len(allNode)/2+1) {
 						log.Println(selfNode.Id, "总共获取", v, "超过", uint32(len(allNode)/2+1))
 						// 进入领导者状态
@@ -151,6 +165,10 @@ func NewNode(selfNode *Node) {
 
 					} else {
 						mux.Unlock()
+						// 没有获取到票，退回到follower状态
+						// TODO 还有权重的影响
+						selfNode.Status = Follower
+						selfNode.Channel <- Follower
 					}
 					// 如果获取到了 2n+1的票则成为leader
 				} else if n == Leader {
@@ -166,4 +184,47 @@ func NewNode(selfNode *Node) {
 	}()
 }
 
-// 日志
+type timer struct {
+	Ticker chan struct{}
+	self   *Node
+	ticker *time.Ticker
+	mux    sync.RWMutex
+	same   bool // 信号量
+}
+
+// Run 启动定时器和同步线程状态
+func (t *timer) Run() {
+	t.Ticker = make(chan struct{})
+	t.same = true
+	ticker := time.NewTicker(time.Second)
+	for {
+		<-ticker.C
+		t.mux.RLock()
+		// equal true , it's not stopping
+		if t.same == true {
+			log.Println("发送ticker")
+			t.Ticker <- struct{}{}
+		}
+		t.mux.RUnlock()
+
+	}
+}
+func (t *timer) Pause() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.same = false
+}
+
+func (t *timer) Restart() {
+	t.mux.Lock()
+	defer t.mux.Unlock()
+	t.same = true
+}
+
+// Start 下面两个方法是系统定时器的 一般不调用
+func (t *timer) Start() {
+	t.ticker.Reset(time.Second)
+}
+func (t *timer) Stop() {
+	t.ticker.Stop()
+}

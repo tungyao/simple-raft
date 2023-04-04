@@ -1,6 +1,7 @@
 package simple_raft
 
 import (
+	"context"
 	"log"
 	"math/rand"
 	"sync/atomic"
@@ -104,13 +105,14 @@ func TestNode1(t *testing.T) {
 		Timeout:      100,
 		LastLoseTime: 0,
 		Channel:      nil,
-		Vote:         0,
 		Message:      nil,
 		LogIndex:     0,
 		TermIndex:    0,
 		IsVote:       false,
+		Timer:        new(timer),
 	}
 	NewNode(node)
+	node.Timer.Run()
 	node.Net.Run()
 }
 func TestNode2(t *testing.T) {
@@ -134,4 +136,14 @@ func TestPlus(t *testing.T) {
 		uint82Uint64(arr1[0], arr1[1], arr1[2], arr1[3], arr1[4], arr1[5], arr1[6], arr1[7])
 	log.Println(b)
 
+}
+func TestTimeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	go func(ctx2 context.Context) {
+	}(ctx)
+	select {
+	case <-ctx.Done():
+		cancel()
+
+	}
 }

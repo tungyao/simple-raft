@@ -24,8 +24,6 @@ type network struct {
 // 1 | 2          | 3           | 4           | 5 | 6 | 7 | 8 |
 //  是否接续上一报文   操作码
 //                   0 发送心跳
-//                   1 请求票       应该回应编号    任期号5-12位       13-20位是日志最大编号
-//                   2 回应票
 
 func (ne *network) Run() {
 	ne.Rece = make(chan []byte, 512)
