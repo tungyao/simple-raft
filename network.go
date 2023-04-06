@@ -21,9 +21,12 @@ type network struct {
 // so, Reload from the yaml file
 
 // 协议 按照byte=8位
-// 1 | 2          | 3           | 4           | 5 | 6 | 7 | 8 |
+// 1 | 2          | 3                  | 4 | 5               | 6 | 7 | 8 |
 //  是否接续上一报文   操作码
-//                   0 发送心跳
+//                   0 get heart
+//                   1 send heart
+//                   2 join group        heart for timeout
+//
 
 func (ne *network) Run() {
 	ne.Rece = make(chan []byte, 512)
@@ -62,7 +65,8 @@ func (ne *network) Run() {
 				ne.Rece <- data[:n]
 
 				// 加入集群
-				if data[3] == 0x1 {
+				// TODO 需要加入超时时间 p:119
+				if data[2] == 0x2 {
 					allNode = append(allNode, &Node{})
 				}
 
@@ -72,13 +76,11 @@ func (ne *network) Run() {
 	}
 }
 
-// HeartRequest 向其他节点发送心跳
+// HeartRequest 向其他节点发送心跳 以超时事件最短的为发送时间
 func (ne *network) HeartRequest(nodes []*Node) {
-	for _, v := range nodes {
-		if v.Id != ne.self.Id {
-			// TODO 心跳发送
-			log.Println("向", v.Id, "发送心跳")
-		}
+	// TODO send heart to each node
+	for _, _ = range allNode {
+		ne.self.Net.Send <- []byte{0, 0, 1}
 	}
 }
 

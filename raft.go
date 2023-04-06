@@ -57,6 +57,7 @@ type Node struct {
 	TermIndex    uint64
 	IsVote       bool // 在当前任期是不是已经投了票
 	Timer        *timer
+	Mux          sync.RWMutex
 }
 
 func (n *Node) Change() {
@@ -105,17 +106,22 @@ func NewNode(selfNode *Node) {
 	go func() {
 		for {
 			select {
-			// TODO 应该有个全局的定时器，
-			// TODO 这里要处理心跳和超时处理
 			case <-selfNode.Timer.Ticker:
 				if selfNode.Status == Follower {
 					// 进入选举流程
 					selfNode.Channel <- Candidate
+				} else if selfNode.Status == Leader {
+					//
+					selfNode.Net.HeartRequest(allNode)
+
 				}
 			case n := <-selfNode.Channel:
 				log.Println("接受到channel", n)
 				if n == Candidate {
 					mux.Lock()
+					// 暂停信号量 直到执行完成
+					selfNode.Timer.Pause()
+
 					log.Println("进入候选者状态")
 					// 补充候选者状态 应该暂停其他网络请求
 					selfNode.Status = Candidate
@@ -170,11 +176,10 @@ func NewNode(selfNode *Node) {
 						selfNode.Status = Follower
 						selfNode.Channel <- Follower
 					}
+					selfNode.Timer.Restart()
 					// 如果获取到了 2n+1的票则成为leader
 				} else if n == Leader {
-					// 向其他人发送心跳并接受到心跳
-					selfNode.Net.HeartRequest(allNode)
-					// tcp流是复用的
+					// 向其他人发送心跳并接受到心跳 to :112
 				} else {
 					// 最后是跟随者
 				}
@@ -185,20 +190,26 @@ func NewNode(selfNode *Node) {
 }
 
 type timer struct {
-	Ticker chan struct{}
-	self   *Node
-	ticker *time.Ticker
-	mux    sync.RWMutex
-	same   bool // 信号量
+	Ticker                chan struct{}
+	self                  *Node
+	ticker                *time.Ticker
+	minHeartTimeoutTicker *time.Ticker
+	mux                   sync.RWMutex
+	same                  bool // 信号量
 }
 
 // Run 启动定时器和同步线程状态
+// 如果进入选举状态 则不发送定时信号 由same这个控制
 func (t *timer) Run() {
 	t.Ticker = make(chan struct{})
 	t.same = true
-	ticker := time.NewTicker(time.Second)
+	t.ticker = time.NewTicker(time.Second)
 	for {
-		<-ticker.C
+		select {
+		case <-t.ticker.C:
+		case <-t.minHeartTimeoutTicker.C:
+
+		}
 		t.mux.RLock()
 		// equal true , it's not stopping
 		if t.same == true {
@@ -224,7 +235,23 @@ func (t *timer) Restart() {
 // Start 下面两个方法是系统定时器的 一般不调用
 func (t *timer) Start() {
 	t.ticker.Reset(time.Second)
+	// 选出最小的心跳超时时间
+	low := 10000
+	mux.Lock()
+	for _, v := range allNode {
+		if low < v.Timeout {
+			low = v.Timeout
+		}
+	}
+	mux.Unlock()
+
+	if t.minHeartTimeoutTicker == nil {
+		t.minHeartTimeoutTicker = time.NewTicker(time.Millisecond * time.Duration(low))
+	}
+	t.minHeartTimeoutTicker.Reset(time.Millisecond * time.Duration(low))
+
 }
 func (t *timer) Stop() {
 	t.ticker.Stop()
+	t.minHeartTimeoutTicker.Stop()
 }
