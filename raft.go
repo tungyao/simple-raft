@@ -75,6 +75,7 @@ func init() {
 	log.SetFlags(log.Llongfile)
 }
 
+// TODO 丢失链接的node 需要用什么办法从slice中移除
 var allNode []*Node
 var mux sync.Mutex
 
@@ -236,7 +237,7 @@ func (t *timer) Restart() {
 func (t *timer) Start() {
 	t.ticker.Reset(time.Second)
 	// 选出最小的心跳超时时间
-	low := 10000
+	low := 4095
 	mux.Lock()
 	for _, v := range allNode {
 		if low < v.Timeout {

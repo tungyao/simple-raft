@@ -65,9 +65,13 @@ func (ne *network) Run() {
 				ne.Rece <- data[:n]
 
 				// 加入集群
-				// TODO 需要加入超时时间 p:119
 				if data[2] == 0x2 {
-					allNode = append(allNode, &Node{})
+					nd := &Node{
+						Timeout: int(uint32(data[4]&0xff)<<8) + int(data[3]&0xff),
+					}
+					mux.Lock()
+					allNode = append(allNode, nd)
+					mux.Unlock()
 				}
 
 			}

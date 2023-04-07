@@ -7,7 +7,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-	"unsafe"
 )
 
 func TestNewNode(t *testing.T) {
@@ -124,17 +123,18 @@ func TestNode3(t *testing.T) {
 
 func TestPlus(t *testing.T) {
 	var arr1 = make([]int, 0)
+	a := 2000
 
-	a := 21565
-	//arr1 = append(arr1, a&0xff)
-	//arr1 = append(arr1, (a>>8)&0xff)
+	arr1 = append(arr1, a&0xff)
+	arr1 = append(arr1, (a>>8)&0xff)
 	//arr1 = append(arr1, (a>>16)&0xff)
 	//arr1 = append(arr1, (a>>24)&0xff)
-	uint642uint8(a, unsafe.Pointer(&arr1))
+	//uint642uint8(a, unsafe.Pointer(&arr1))
 	log.Println(arr1)
-	b :=
-		uint82Uint64(arr1[0], arr1[1], arr1[2], arr1[3], arr1[4], arr1[5], arr1[6], arr1[7])
-	log.Println(b)
+	log.Println(arr1[0]&0xff + ((arr1[1] & 0xff) << 8))
+	//b :=
+	//	uint82Uint64(arr1[0], arr1[1], arr1[2], arr1[3], arr1[4], arr1[5], arr1[6], arr1[7])
+	//log.Println(b)
 
 }
 func TestTimeout(t *testing.T) {
