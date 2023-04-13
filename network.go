@@ -51,12 +51,12 @@ func (ne *network) Run() {
 			continue
 		}
 		connections[conn] = true
-		go handleConnection(conn, connections)
+		go handleConnection(ne, conn, connections)
 
 	}
 }
 
-func handleConnection(conn net.Conn, connections map[net.Conn]bool) {
+func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]bool) {
 	// TODO 这里是写个狗屁
 	// 正确的需求是什么
 	// 节点都是以listen方式监听在某一个端口上，其他节点加入的时候，需要记录conn结构体，还需要同时发送和接受消息
@@ -64,12 +64,12 @@ func handleConnection(conn net.Conn, connections map[net.Conn]bool) {
 	var data [1024]byte
 	for {
 		// 接收数据
-		_, err := conn.Read(data[:])
+		n, err := conn.Read(data[:])
 		if err != nil {
 			return
 		}
-		// TODO 这里需要一个数据汇总的东西
-
+		// TODO 这里需要一个数据汇总的东西,什么是数据汇总的东西，其他节点向该节点发送信息
+		mainNe.Rece <- data[:n]
 		// 加入集群
 		if data[2] == 0x2 {
 			// 声明超时时间
@@ -123,7 +123,7 @@ func receiveData(conn net.Conn) {
 func (ne *network) HeartRequest(nodes []*Node) {
 	// TODO send heart to each node
 	for _, v := range allNode {
-		v.Net.Send <- []byte{0, 0, 1}
+		v.Net.Conn.Write([]byte{0, 0, 1})
 	}
 }
 
