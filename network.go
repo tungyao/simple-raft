@@ -2,8 +2,10 @@ package simple_raft
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"os"
+	"sync"
 	"unsafe"
 )
 
@@ -14,9 +16,17 @@ import (
 type network struct {
 	self    *Node
 	Address string
-	Rece    chan []byte
+	Rece    chan *networkConn
 	Send    chan []byte
 	Conn    net.Conn
+}
+
+type networkConn struct {
+	Conn    unsafe.Pointer
+	IsClose bool
+	Data    [1024]byte
+	Stop    int
+	sync.RWMutex
 }
 
 // In fact , there's a node list in program
@@ -33,8 +43,7 @@ type network struct {
 func (ne *network) Run() {
 
 	// TODO 网络功能需要重新设计
-	ne.Rece = make(chan []byte, 512)
-	ne.Send = make(chan []byte, 512)
+	ne.Rece = make(chan *networkConn, 512)
 	ln, err := net.Listen("tcp", ne.self.Addr)
 	if err != nil {
 		fmt.Println(err)
@@ -44,6 +53,15 @@ func (ne *network) Run() {
 
 	fmt.Println("Listening on :", ne.self.Addr)
 	connections := make(map[net.Conn]bool)
+	go func() {
+		for v := range ne.Rece {
+			conn := (*net.TCPConn)(v.Conn)
+			if v.IsClose == false {
+				conn.Write([]byte("hello world"))
+			}
+			log.Println("tcp receive")
+		}
+	}()
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -57,11 +75,11 @@ func (ne *network) Run() {
 }
 
 func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]bool) {
-	// TODO 这里是写个狗屁
 	// 正确的需求是什么
 	// 节点都是以listen方式监听在某一个端口上，其他节点加入的时候，需要记录conn结构体，还需要同时发送和接受消息
 	// 同时接收和发送数据
 	var data [1024]byte
+	connPoint := unsafe.Pointer(&conn)
 	for {
 		// 接收数据
 		n, err := conn.Read(data[:])
@@ -69,7 +87,12 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 			return
 		}
 		// TODO 这里需要一个数据汇总的东西,什么是数据汇总的东西，其他节点向该节点发送信息
-		mainNe.Rece <- data[:n]
+		// 思考 是不是要用channel ,有没有更加实用的方法
+		mainNe.Rece <- &networkConn{
+			Conn: connPoint,
+			Data: data,
+			Stop: n,
+		}
 		// 加入集群
 		if data[2] == 0x2 {
 			// 声明超时时间

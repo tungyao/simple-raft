@@ -205,6 +205,8 @@ func (t *timer) Run() {
 	t.Ticker = make(chan struct{})
 	t.same = true
 	t.ticker = time.NewTicker(time.Second)
+	t.minHeartTimeoutTicker = time.NewTicker(time.Second)
+	t.minHeartTimeoutTicker.Stop()
 	for {
 		select {
 		case <-t.ticker.C:
