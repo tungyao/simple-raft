@@ -101,7 +101,7 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 				Net:     &network{Conn: conn},
 			}
 			mux.Lock()
-			allNode = append(allNode, nd)
+			mainNe.self.allNode = append(mainNe.self.allNode, nd)
 			mux.Unlock()
 		}
 
@@ -145,7 +145,7 @@ func receiveData(conn net.Conn) {
 // HeartRequest 向其他节点发送心跳 以超时事件最短的为发送时间
 func (ne *network) HeartRequest(nodes []*Node) {
 	// TODO send heart to each node
-	for _, v := range allNode {
+	for _, v := range ne.self.allNode {
 		v.Net.Conn.Write([]byte{0, 0, 1})
 	}
 }

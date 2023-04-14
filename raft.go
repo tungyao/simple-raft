@@ -23,6 +23,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"io"
 	"log"
+	"net"
 	"os"
 	"sync"
 	"time"
@@ -44,7 +45,7 @@ const (
 
 // Node 部署每一个主机
 type Node struct {
-	Addr         string `yaml:"addr"` // 主机地址
+	Addr         string `yaml:"address"` // 主机地址
 	Rate         uint8  // 投票倍率 这个值一般可以忽略
 	Id           string `yaml:"id"` // 主机标识
 	Status       int
@@ -58,6 +59,8 @@ type Node struct {
 	IsVote       bool // 在当前任期是不是已经投了票
 	Timer        *timer
 	Mux          sync.RWMutex
+	rpcAddr      string
+	allNode      []*Node
 }
 
 func (n *Node) Change() {
@@ -76,29 +79,38 @@ func init() {
 }
 
 // TODO 丢失链接的node 需要用什么办法从slice中移除
-var allNode []*Node
 var mux sync.Mutex
 
 // NewNode 建立一个节点
 // 同时要提供其他节点的通讯地址
 func NewNode(selfNode *Node) {
-	allNode = make([]*Node, 0)
+	thisall := make([]*Node, 0)
+	selfNode.allNode = make([]*Node, 0)
 	fs, err := os.Open("conf.yml")
 	data, err := io.ReadAll(fs)
-
-	selfNode.Net.self = selfNode
-	selfNode.Timer.self = selfNode
 	if err != nil {
 		log.Fatalf("无法读取YAML文件：%v", err)
 	}
 	defer fs.Close()
 
+	selfNode.Net.self = selfNode
+	selfNode.Timer.self = selfNode
+
 	// 将YAML数据反序列化为结构体
-	err = yaml.Unmarshal(data, &allNode)
+	err = yaml.Unmarshal(data, &thisall)
 	if err != nil {
 		log.Fatalf("无法反序列化YAML数据：%v", err)
 	}
-	log.Println(allNode)
+
+	// 剔除本机的id TODO 这里的内存可能无法回收
+	for _, node := range thisall {
+		if node.Id != selfNode.Id {
+			host, port, _ := net.SplitHostPort(node.Addr)
+			node.rpcAddr = host + ":" + "1" + port
+			selfNode.allNode = append(selfNode.allNode, node)
+		}
+	}
+	log.Printf("%v", selfNode.allNode)
 	// 进入正式的流程
 	selfNode.Status = Follower
 	selfNode.Channel = make(chan int, 1)
@@ -113,47 +125,53 @@ func NewNode(selfNode *Node) {
 					selfNode.Channel <- Candidate
 				} else if selfNode.Status == Leader {
 					//
-					selfNode.Net.HeartRequest(allNode)
+					selfNode.Net.HeartRequest(selfNode.allNode)
 
 				}
 			case n := <-selfNode.Channel:
-				log.Println("接受到channel", n)
+				log.Println(selfNode.Id, "接受到channel", n)
 				if n == Candidate {
 					mux.Lock()
 					// 暂停信号量 直到执行完成
 					selfNode.Timer.Pause()
 
-					log.Println("进入候选者状态")
+					log.Println(selfNode.Id, "进入候选者状态")
 					// 补充候选者状态 应该暂停其他网络请求
 					selfNode.Status = Candidate
 					selfNode.TermIndex += 1
 					var group sync.WaitGroup
-					var replyData = make([]*pb.VoteReplyData, 0, len(allNode))
-					group.Add(len(allNode))
-					for _, node := range allNode {
+					var replyData = make([]*pb.VoteReplyData, 0, len(selfNode.allNode))
+					group.Add(len(selfNode.allNode))
+					// 这里还有一个问题 TODO 这里超时还没执行完成 下一个定时器又来了 这是肯定不行的
+					selfNode.Timer.Pause()
+					for _, node := range selfNode.allNode {
 						n := node
 						go func() {
 							defer group.Done()
 							// 超时处理
-							ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+							ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 							defer cancel()
-							conn, err := grpc.DialContext(ctx, n.Addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+							log.Println(selfNode.Id, "rpc dial", n.rpcAddr)
+							conn, err := grpc.DialContext(ctx, n.rpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 							if err != nil {
 								log.Printf("did not connect: %v\n", err)
 								return
 							}
 							defer conn.Close()
 
+							// TODO 本地调试无法互相连接
 							clt := pb.NewVoteClient(conn)
 							reply, err := clt.VoteRequest(ctx, &pb.VoteRequestData{
 								TermIndex: selfNode.TermIndex,
 								LogIndex:  selfNode.LogIndex,
 							})
+							log.Println(selfNode.Id, err, reply)
 							replyData = append(replyData, reply)
 						}()
 
 					}
 					group.Wait()
+					selfNode.Timer.Restart()
 					// 向其他几点发送投票请求
 					var v uint32
 					// 统计获得票
@@ -162,9 +180,9 @@ func NewNode(selfNode *Node) {
 							v += datum.Get
 						}
 					}
-					log.Println("统计票", v)
-					if v >= uint32(len(allNode)/2+1) {
-						log.Println(selfNode.Id, "总共获取", v, "超过", uint32(len(allNode)/2+1))
+					log.Println(selfNode.Id, "统计票", v)
+					if v >= uint32(len(selfNode.allNode)/2+1) {
+						log.Println(selfNode.Id, "总共获取", v, "超过", uint32(len(selfNode.allNode)/2+1))
 						// 进入领导者状态
 						selfNode.Status = Leader
 						mux.Unlock()
@@ -204,8 +222,8 @@ type timer struct {
 func (t *timer) Run() {
 	t.Ticker = make(chan struct{})
 	t.same = true
-	t.ticker = time.NewTicker(time.Second)
-	t.minHeartTimeoutTicker = time.NewTicker(time.Second)
+	t.ticker = time.NewTicker(time.Second * 5)
+	t.minHeartTimeoutTicker = time.NewTicker(time.Hour)
 	t.minHeartTimeoutTicker.Stop()
 	for {
 		select {
@@ -216,7 +234,7 @@ func (t *timer) Run() {
 		t.mux.RLock()
 		// equal true , it's not stopping
 		if t.same == true {
-			log.Println("发送ticker")
+			log.Println(t.self.Id, "发送ticker")
 			t.Ticker <- struct{}{}
 		}
 		t.mux.RUnlock()
@@ -241,7 +259,7 @@ func (t *timer) Start() {
 	// 选出最小的心跳超时时间
 	low := 4095
 	mux.Lock()
-	for _, v := range allNode {
+	for _, v := range t.self.allNode {
 		if low < v.Timeout {
 			low = v.Timeout
 		}

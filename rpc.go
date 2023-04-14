@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/tungyao/simple-raft/pb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 	"log"
 	"net"
 )
@@ -16,8 +17,14 @@ func StartRpc(node *Node) {
 		self: node,
 	}
 	pb.RegisterVoteServer(grpcServer, service1)
+	reflection.Register(grpcServer)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 10001))
+	_, port, err := net.SplitHostPort(node.Addr)
+	if err != nil {
+		panic(err)
+	}
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", "1"+port))
+	log.Println("rpc listen", "1"+port)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -37,10 +44,10 @@ func (v *VoteRpcImp) VoteRequest(ctx context.Context, data *pb.VoteRequestData) 
 
 	mux.Lock()
 	defer mux.Unlock()
-	if v.self.IsVote == false && data.TermIndex <= v.self.TermIndex || data.LogIndex <= v.self.LogIndex {
+	log.Println("----", data.TermIndex, v.self.TermIndex, data.LogIndex, v.self.LogIndex)
+	if v.self.IsVote == false && (data.TermIndex < v.self.TermIndex || data.LogIndex < v.self.LogIndex) {
 		return &pb.VoteReplyData{Get: 0}, nil
 	}
 	v.self.IsVote = true
-
 	return &pb.VoteReplyData{Get: 1}, nil
 }
