@@ -44,7 +44,7 @@ func (v *VoteRpcImp) VoteRequest(ctx context.Context, data *pb.VoteRequestData) 
 
 	mux.Lock()
 	defer mux.Unlock()
-	log.Println("----", data.TermIndex, v.self.TermIndex, data.LogIndex, v.self.LogIndex)
+	log.Println("----", data.TermIndex, v.self.TermIndex, data.LogIndex, v.self.LogIndex, data.TermIndex < v.self.TermIndex || data.LogIndex < v.self.LogIndex)
 	if v.self.IsVote == false && (data.TermIndex < v.self.TermIndex || data.LogIndex < v.self.LogIndex) {
 		return &pb.VoteReplyData{Get: 0}, nil
 	}

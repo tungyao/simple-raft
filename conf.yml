@@ -1,6 +1,6 @@
 - id: node1
-  address: "0.0.0.0:3000"
+  address: "127.0.0.1:3000"
 - id: node2
-  address: "0.0.0.0:3001"
+  address: "127.0.0.1:3001"
 - id: node3
-  address: "0.0.0.0:3002"
+  address: "127.0.0.1:3002"

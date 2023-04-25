@@ -143,7 +143,6 @@ func NewNode(selfNode *Node) {
 					var replyData = make([]*pb.VoteReplyData, 0, len(selfNode.allNode))
 					group.Add(len(selfNode.allNode))
 					// 这里还有一个问题 TODO 这里超时还没执行完成 下一个定时器又来了 这是肯定不行的
-					selfNode.Timer.Pause()
 					for _, node := range selfNode.allNode {
 						n := node
 						go func() {
@@ -171,7 +170,6 @@ func NewNode(selfNode *Node) {
 
 					}
 					group.Wait()
-					selfNode.Timer.Restart()
 					// 向其他几点发送投票请求
 					var v uint32
 					// 统计获得票
@@ -244,12 +242,14 @@ func (t *timer) Run() {
 func (t *timer) Pause() {
 	t.mux.Lock()
 	defer t.mux.Unlock()
+	log.Println(t.self.Id, "ticket暂停")
 	t.same = false
 }
 
 func (t *timer) Restart() {
 	t.mux.Lock()
 	defer t.mux.Unlock()
+	log.Println(t.self.Id, "ticket恢复")
 	t.same = true
 }
 

@@ -97,7 +97,7 @@ func TestSelect(t *testing.T) {
 func TestNode1(t *testing.T) {
 	go func() {
 		node := &Node{
-			Addr:         "0.0.0.0:3001",
+			Addr:         "127.0.0.1:3001",
 			Rate:         0,
 			Id:           "node2",
 			Status:       0,
@@ -112,12 +112,12 @@ func TestNode1(t *testing.T) {
 			Timer:        new(timer),
 		}
 		NewNode(node)
-		node.Timer.Run()
+		go node.Timer.Run()
 		node.Net.Run()
 	}()
 	go func() {
 		node := &Node{
-			Addr:         "0.0.0.0:3002",
+			Addr:         "127.0.0.1:3002",
 			Rate:         0,
 			Id:           "node3",
 			Status:       0,
@@ -132,11 +132,11 @@ func TestNode1(t *testing.T) {
 			Timer:        new(timer),
 		}
 		NewNode(node)
-		node.Timer.Run()
+		go node.Timer.Run()
 		node.Net.Run()
 	}()
 	node := &Node{
-		Addr:         "0.0.0.0:3000",
+		Addr:         "127.0.0.1:3000",
 		Rate:         0,
 		Id:           "node1",
 		Status:       0,
@@ -151,7 +151,7 @@ func TestNode1(t *testing.T) {
 		Timer:        new(timer),
 	}
 	NewNode(node)
-	node.Timer.Run()
+	go node.Timer.Run()
 	node.Net.Run()
 
 }

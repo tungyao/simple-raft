@@ -51,7 +51,7 @@ func (ne *network) Run() {
 	}
 	defer ln.Close()
 
-	fmt.Println("Listening on :", ne.self.Addr)
+	log.Println("Listening on :", ne.self.Addr)
 	connections := make(map[net.Conn]bool)
 	go func() {
 		for v := range ne.Rece {
@@ -145,6 +145,7 @@ func receiveData(conn net.Conn) {
 // HeartRequest 向其他节点发送心跳 以超时事件最短的为发送时间
 func (ne *network) HeartRequest(nodes []*Node) {
 	// TODO send heart to each node
+	log.Println(ne.self.Id, "向其他发送心跳")
 	for _, v := range ne.self.allNode {
 		v.Net.Conn.Write([]byte{0, 0, 1})
 	}
