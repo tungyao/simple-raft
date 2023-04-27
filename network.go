@@ -34,11 +34,16 @@ type networkConn struct {
 
 // 协议 按照byte=8位
 // 1 | 2          | 3                  | 4 | 5               | 6 | 7 | 8 |
-//  是否接续上一报文   操作码
-//                   0 get heart
-//                   1 send heart
-//                   2 join group        heart for timeout
 //
+//	是否接续上一报文   操作码
+//	                 0 get heart
+//	                 1 send heart
+//	                 2 join group        heart for timeout
+//
+// 需要有一个先master节点主动连接的动作
+func (ne *network) connectMaster() {
+
+}
 
 func (ne *network) Run() {
 
@@ -146,6 +151,7 @@ func receiveData(conn net.Conn) {
 func (ne *network) HeartRequest(nodes []*Node) {
 	// TODO send heart to each node
 	log.Println(ne.self.Id, "向其他发送心跳")
+	log.Println(ne.self.allNode)
 	for _, v := range ne.self.allNode {
 		v.Net.Conn.Write([]byte{0, 0, 1})
 	}

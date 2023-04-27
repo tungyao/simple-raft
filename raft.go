@@ -23,7 +23,6 @@ import (
 	"gopkg.in/yaml.v2"
 	"io"
 	"log"
-	"net"
 	"os"
 	"sync"
 	"time"
@@ -62,6 +61,10 @@ type Node struct {
 	rpcAddr      string
 	allNode      []*Node
 }
+type master struct {
+	tcpAddr string `yaml:"tcp_addr"`
+	rpcAddr string `yaml:"rpc_addr"`
+}
 
 func (n *Node) Change() {
 	//switch n.Status {
@@ -84,15 +87,18 @@ var mux sync.Mutex
 // NewNode 建立一个节点
 // 同时要提供其他节点的通讯地址
 func NewNode(selfNode *Node) {
-	thisall := make([]*Node, 0)
+	thisall := &master{}
 	selfNode.allNode = make([]*Node, 0)
 	fs, err := os.Open("conf.yml")
 	data, err := io.ReadAll(fs)
 	if err != nil {
 		log.Fatalf("无法读取YAML文件：%v", err)
 	}
+	selfNode.Net = new(network)
+	selfNode.Timer = new(timer)
+	go selfNode.Timer.Run()
 	defer fs.Close()
-
+	log.Println(selfNode)
 	selfNode.Net.self = selfNode
 	selfNode.Timer.self = selfNode
 
@@ -103,23 +109,23 @@ func NewNode(selfNode *Node) {
 	}
 
 	// 剔除本机的id TODO 这里的内存可能无法回收
-	for _, node := range thisall {
-		if node.Id != selfNode.Id {
-			host, port, _ := net.SplitHostPort(node.Addr)
-			node.rpcAddr = host + ":" + "1" + port
-			selfNode.allNode = append(selfNode.allNode, node)
-		}
-	}
+	//for _, node := range thisall {
+	//	if node.Id != selfNode.Id {
+	//		host, port, _ := net.SplitHostPort(node.Addr)
+	//		node.rpcAddr = host + ":" + "1" + port
+	//		selfNode.allNode = append(selfNode.allNode, node)
+	//	}
+	//}
 	log.Printf("%v", selfNode.allNode)
 	// 进入正式的流程
 	selfNode.Status = Follower
 	selfNode.Channel = make(chan int, 1)
-	selfNode.Net = &network{self: selfNode}
 	go StartRpc(selfNode)
 	go func() {
 		for {
 			select {
 			case <-selfNode.Timer.Ticker:
+				log.Println("收到ticker")
 				if selfNode.Status == Follower {
 					// 进入选举流程
 					selfNode.Channel <- Candidate

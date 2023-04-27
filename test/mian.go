@@ -17,6 +17,6 @@ func main() {
 		Id:   id,
 	}
 	sr.NewNode(node)
-	go node.Timer.Run()
 	node.Net.Run()
+
 }
