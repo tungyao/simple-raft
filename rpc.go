@@ -2,7 +2,6 @@ package simple_raft
 
 import (
 	"context"
-	"fmt"
 	"github.com/tungyao/simple-raft/pb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -19,12 +18,7 @@ func StartRpc(node *Node) {
 	pb.RegisterVoteServer(grpcServer, service1)
 	reflection.Register(grpcServer)
 
-	_, port, err := net.SplitHostPort(node.Addr)
-	if err != nil {
-		panic(err)
-	}
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%s", "1"+port))
-	log.Println("rpc listen", "1"+port)
+	lis, err := net.Listen("tcp", node.RpcAddr)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
@@ -44,6 +38,7 @@ func (v *VoteRpcImp) VoteRequest(ctx context.Context, data *pb.VoteRequestData) 
 
 	mux.Lock()
 	defer mux.Unlock()
+	// TODO 这里要修改 任期和日志计算方式 不太对
 	log.Println("----", data.TermIndex, v.self.TermIndex, data.LogIndex, v.self.LogIndex, data.TermIndex < v.self.TermIndex || data.LogIndex < v.self.LogIndex)
 	if v.self.IsVote == false && (data.TermIndex < v.self.TermIndex || data.LogIndex < v.self.LogIndex) {
 		return &pb.VoteReplyData{Get: 0}, nil

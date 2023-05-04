@@ -44,12 +44,12 @@ const (
 
 // Node 部署每一个主机
 type Node struct {
-	Addr         string `yaml:"address"` // 主机地址
+	TcpAddr      string `yaml:"tcp_addr" json:"tcp_addr"` // 主机地址
 	Rate         uint8  // 投票倍率 这个值一般可以忽略
-	Id           string `yaml:"id"` // 主机标识
+	Id           string `yaml:"id" json:"id"` // 主机标识
 	Status       int
 	Net          *network // 网络相关的操作
-	Timeout      int      // 心跳间隔
+	Timeout      int      `json:"timeout"` // 心跳间隔
 	LastLoseTime int64    // 上次收到心跳时间
 	Channel      chan int
 	Message      chan string
@@ -58,12 +58,9 @@ type Node struct {
 	IsVote       bool // 在当前任期是不是已经投了票
 	Timer        *timer
 	Mux          sync.RWMutex
-	rpcAddr      string
-	allNode      []*Node
-}
-type master struct {
-	tcpAddr string `yaml:"tcp_addr"`
-	rpcAddr string `yaml:"rpc_addr"`
+	RpcAddr      string `yaml:"rpc_addr" json:"rpc_addr"`
+	allNode      map[string]*Node
+	MasterName   string
 }
 
 func (n *Node) Change() {
@@ -87,9 +84,8 @@ var mux sync.Mutex
 // NewNode 建立一个节点
 // 同时要提供其他节点的通讯地址
 func NewNode(selfNode *Node) {
-	thisall := &master{}
-	selfNode.allNode = make([]*Node, 0)
-	fs, err := os.Open("conf.yml")
+	selfNode.allNode = make(map[string]*Node)
+	fs, err := os.Open(selfNode.Id + ".yml")
 	data, err := io.ReadAll(fs)
 	if err != nil {
 		log.Fatalf("无法读取YAML文件：%v", err)
@@ -103,7 +99,7 @@ func NewNode(selfNode *Node) {
 	selfNode.Timer.self = selfNode
 
 	// 将YAML数据反序列化为结构体
-	err = yaml.Unmarshal(data, &thisall)
+	err = yaml.Unmarshal(data, &selfNode)
 	if err != nil {
 		log.Fatalf("无法反序列化YAML数据：%v", err)
 	}
@@ -127,12 +123,19 @@ func NewNode(selfNode *Node) {
 			case <-selfNode.Timer.Ticker:
 				log.Println("收到ticker")
 				if selfNode.Status == Follower {
-					// 进入选举流程
-					selfNode.Channel <- Candidate
+					// 检测超时进入选举流程
+					if time.Now().Unix()-selfNode.LastLoseTime > int64(selfNode.Timeout) {
+						selfNode.Channel <- Candidate
+					}
 				} else if selfNode.Status == Leader {
 					//
+					log.Println("现在是领导者 +++++++++++++++++++++++++++++")
 					selfNode.Net.HeartRequest(selfNode.allNode)
-
+					log.Println(selfNode.allNode)
+					if len(selfNode.allNode) == 0 { // 重新记录候选者
+						selfNode.Status = Candidate
+						selfNode.Channel <- Candidate
+					}
 				}
 			case n := <-selfNode.Channel:
 				log.Println(selfNode.Id, "接受到channel", n)
@@ -156,8 +159,8 @@ func NewNode(selfNode *Node) {
 							// 超时处理
 							ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 							defer cancel()
-							log.Println(selfNode.Id, "rpc dial", n.rpcAddr)
-							conn, err := grpc.DialContext(ctx, n.rpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+							log.Println(selfNode.Id, "rpc dial", n.RpcAddr)
+							conn, err := grpc.DialContext(ctx, n.RpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 							if err != nil {
 								log.Printf("did not connect: %v\n", err)
 								return
@@ -205,6 +208,7 @@ func NewNode(selfNode *Node) {
 					// 向其他人发送心跳并接受到心跳 to :112
 				} else {
 					// 最后是跟随者
+					log.Println("现在是 follower")
 				}
 
 			}
