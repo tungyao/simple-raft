@@ -26,7 +26,7 @@ func main() {
 	sr.NewNode(node)
 	if slave {
 		go func() {
-			time.Sleep(time.Second * 3)
+			time.Sleep(time.Second * 1)
 			node.Net.ConnectMaster(master)
 		}()
 	}

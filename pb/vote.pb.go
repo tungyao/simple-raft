@@ -122,6 +122,187 @@ func (x *VoteReplyData) GetGet() uint32 {
 	return 0
 }
 
+type EntryClientInitDataRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SelfNode []*SelfNode `protobuf:"bytes,1,rep,name=selfNode,proto3" json:"selfNode,omitempty"` // 本机携带的节点
+	SelfId   string      `protobuf:"bytes,2,opt,name=selfId,proto3" json:"selfId,omitempty"`
+}
+
+func (x *EntryClientInitDataRequest) Reset() {
+	*x = EntryClientInitDataRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pb_vote_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *EntryClientInitDataRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntryClientInitDataRequest) ProtoMessage() {}
+
+func (x *EntryClientInitDataRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_vote_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntryClientInitDataRequest.ProtoReflect.Descriptor instead.
+func (*EntryClientInitDataRequest) Descriptor() ([]byte, []int) {
+	return file_pb_vote_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *EntryClientInitDataRequest) GetSelfNode() []*SelfNode {
+	if x != nil {
+		return x.SelfNode
+	}
+	return nil
+}
+
+func (x *EntryClientInitDataRequest) GetSelfId() string {
+	if x != nil {
+		return x.SelfId
+	}
+	return ""
+}
+
+type EntryClientInitDataReply struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	SelfNode  []*SelfNode `protobuf:"bytes,1,rep,name=selfNode,proto3" json:"selfNode,omitempty"` // 本机携带的节点
+	MasterId  string      `protobuf:"bytes,2,opt,name=masterId,proto3" json:"masterId,omitempty"`
+	Increment bool        `protobuf:"varint,3,opt,name=increment,proto3" json:"increment,omitempty"` // 是否是增量节点
+}
+
+func (x *EntryClientInitDataReply) Reset() {
+	*x = EntryClientInitDataReply{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pb_vote_proto_msgTypes[3]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *EntryClientInitDataReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntryClientInitDataReply) ProtoMessage() {}
+
+func (x *EntryClientInitDataReply) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_vote_proto_msgTypes[3]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntryClientInitDataReply.ProtoReflect.Descriptor instead.
+func (*EntryClientInitDataReply) Descriptor() ([]byte, []int) {
+	return file_pb_vote_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *EntryClientInitDataReply) GetSelfNode() []*SelfNode {
+	if x != nil {
+		return x.SelfNode
+	}
+	return nil
+}
+
+func (x *EntryClientInitDataReply) GetMasterId() string {
+	if x != nil {
+		return x.MasterId
+	}
+	return ""
+}
+
+func (x *EntryClientInitDataReply) GetIncrement() bool {
+	if x != nil {
+		return x.Increment
+	}
+	return false
+}
+
+type SelfNode struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Id      string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	TcpAddr string `protobuf:"bytes,2,opt,name=tcpAddr,proto3" json:"tcpAddr,omitempty"`
+	RpcAddr string `protobuf:"bytes,3,opt,name=rpcAddr,proto3" json:"rpcAddr,omitempty"`
+}
+
+func (x *SelfNode) Reset() {
+	*x = SelfNode{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_pb_vote_proto_msgTypes[4]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SelfNode) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SelfNode) ProtoMessage() {}
+
+func (x *SelfNode) ProtoReflect() protoreflect.Message {
+	mi := &file_pb_vote_proto_msgTypes[4]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SelfNode.ProtoReflect.Descriptor instead.
+func (*SelfNode) Descriptor() ([]byte, []int) {
+	return file_pb_vote_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *SelfNode) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *SelfNode) GetTcpAddr() string {
+	if x != nil {
+		return x.TcpAddr
+	}
+	return ""
+}
+
+func (x *SelfNode) GetRpcAddr() string {
+	if x != nil {
+		return x.RpcAddr
+	}
+	return ""
+}
+
 var File_pb_vote_proto protoreflect.FileDescriptor
 
 var file_pb_vote_proto_rawDesc = []byte{
@@ -133,12 +314,36 @@ var file_pb_vote_proto_rawDesc = []byte{
 	0x65, 0x78, 0x18, 0x02, 0x20, 0x01, 0x28, 0x04, 0x52, 0x08, 0x6c, 0x6f, 0x67, 0x49, 0x6e, 0x64,
 	0x65, 0x78, 0x22, 0x21, 0x0a, 0x0d, 0x56, 0x6f, 0x74, 0x65, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x44,
 	0x61, 0x74, 0x61, 0x12, 0x10, 0x0a, 0x03, 0x67, 0x65, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0d,
-	0x52, 0x03, 0x67, 0x65, 0x74, 0x32, 0x3f, 0x0a, 0x04, 0x56, 0x6f, 0x74, 0x65, 0x12, 0x37, 0x0a,
+	0x52, 0x03, 0x67, 0x65, 0x74, 0x22, 0x5e, 0x0a, 0x1a, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x43, 0x6c,
+	0x69, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x69, 0x74, 0x44, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75,
+	0x65, 0x73, 0x74, 0x12, 0x28, 0x0a, 0x08, 0x73, 0x65, 0x6c, 0x66, 0x4e, 0x6f, 0x64, 0x65, 0x18,
+	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x70, 0x62, 0x2e, 0x53, 0x65, 0x6c, 0x66, 0x4e,
+	0x6f, 0x64, 0x65, 0x52, 0x08, 0x73, 0x65, 0x6c, 0x66, 0x4e, 0x6f, 0x64, 0x65, 0x12, 0x16, 0x0a,
+	0x06, 0x73, 0x65, 0x6c, 0x66, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x06, 0x73,
+	0x65, 0x6c, 0x66, 0x49, 0x64, 0x22, 0x7e, 0x0a, 0x18, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x43, 0x6c,
+	0x69, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x69, 0x74, 0x44, 0x61, 0x74, 0x61, 0x52, 0x65, 0x70, 0x6c,
+	0x79, 0x12, 0x28, 0x0a, 0x08, 0x73, 0x65, 0x6c, 0x66, 0x4e, 0x6f, 0x64, 0x65, 0x18, 0x01, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x0c, 0x2e, 0x70, 0x62, 0x2e, 0x53, 0x65, 0x6c, 0x66, 0x4e, 0x6f, 0x64,
+	0x65, 0x52, 0x08, 0x73, 0x65, 0x6c, 0x66, 0x4e, 0x6f, 0x64, 0x65, 0x12, 0x1a, 0x0a, 0x08, 0x6d,
+	0x61, 0x73, 0x74, 0x65, 0x72, 0x49, 0x64, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x08, 0x6d,
+	0x61, 0x73, 0x74, 0x65, 0x72, 0x49, 0x64, 0x12, 0x1c, 0x0a, 0x09, 0x69, 0x6e, 0x63, 0x72, 0x65,
+	0x6d, 0x65, 0x6e, 0x74, 0x18, 0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x09, 0x69, 0x6e, 0x63, 0x72,
+	0x65, 0x6d, 0x65, 0x6e, 0x74, 0x22, 0x4e, 0x0a, 0x08, 0x53, 0x65, 0x6c, 0x66, 0x4e, 0x6f, 0x64,
+	0x65, 0x12, 0x0e, 0x0a, 0x02, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x02, 0x69,
+	0x64, 0x12, 0x18, 0x0a, 0x07, 0x74, 0x63, 0x70, 0x41, 0x64, 0x64, 0x72, 0x18, 0x02, 0x20, 0x01,
+	0x28, 0x09, 0x52, 0x07, 0x74, 0x63, 0x70, 0x41, 0x64, 0x64, 0x72, 0x12, 0x18, 0x0a, 0x07, 0x72,
+	0x70, 0x63, 0x41, 0x64, 0x64, 0x72, 0x18, 0x03, 0x20, 0x01, 0x28, 0x09, 0x52, 0x07, 0x72, 0x70,
+	0x63, 0x41, 0x64, 0x64, 0x72, 0x32, 0x3f, 0x0a, 0x04, 0x56, 0x6f, 0x74, 0x65, 0x12, 0x37, 0x0a,
 	0x0b, 0x56, 0x6f, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x13, 0x2e, 0x70,
 	0x62, 0x2e, 0x56, 0x6f, 0x74, 0x65, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x44, 0x61, 0x74,
 	0x61, 0x1a, 0x11, 0x2e, 0x70, 0x62, 0x2e, 0x56, 0x6f, 0x74, 0x65, 0x52, 0x65, 0x70, 0x6c, 0x79,
-	0x44, 0x61, 0x74, 0x61, 0x22, 0x00, 0x42, 0x05, 0x5a, 0x03, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x44, 0x61, 0x74, 0x61, 0x22, 0x00, 0x32, 0x55, 0x0a, 0x05, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12,
+	0x4c, 0x0a, 0x0a, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x49, 0x6e, 0x69, 0x74, 0x12, 0x1e, 0x2e,
+	0x70, 0x62, 0x2e, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x49, 0x6e,
+	0x69, 0x74, 0x44, 0x61, 0x74, 0x61, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x1c, 0x2e,
+	0x70, 0x62, 0x2e, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x43, 0x6c, 0x69, 0x65, 0x6e, 0x74, 0x49, 0x6e,
+	0x69, 0x74, 0x44, 0x61, 0x74, 0x61, 0x52, 0x65, 0x70, 0x6c, 0x79, 0x22, 0x00, 0x42, 0x05, 0x5a,
+	0x03, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -153,19 +358,26 @@ func file_pb_vote_proto_rawDescGZIP() []byte {
 	return file_pb_vote_proto_rawDescData
 }
 
-var file_pb_vote_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_pb_vote_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_pb_vote_proto_goTypes = []interface{}{
-	(*VoteRequestData)(nil), // 0: pb.VoteRequestData
-	(*VoteReplyData)(nil),   // 1: pb.VoteReplyData
+	(*VoteRequestData)(nil),            // 0: pb.VoteRequestData
+	(*VoteReplyData)(nil),              // 1: pb.VoteReplyData
+	(*EntryClientInitDataRequest)(nil), // 2: pb.EntryClientInitDataRequest
+	(*EntryClientInitDataReply)(nil),   // 3: pb.EntryClientInitDataReply
+	(*SelfNode)(nil),                   // 4: pb.SelfNode
 }
 var file_pb_vote_proto_depIdxs = []int32{
-	0, // 0: pb.Vote.VoteRequest:input_type -> pb.VoteRequestData
-	1, // 1: pb.Vote.VoteRequest:output_type -> pb.VoteReplyData
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	4, // 0: pb.EntryClientInitDataRequest.selfNode:type_name -> pb.SelfNode
+	4, // 1: pb.EntryClientInitDataReply.selfNode:type_name -> pb.SelfNode
+	0, // 2: pb.Vote.VoteRequest:input_type -> pb.VoteRequestData
+	2, // 3: pb.Entry.ClientInit:input_type -> pb.EntryClientInitDataRequest
+	1, // 4: pb.Vote.VoteRequest:output_type -> pb.VoteReplyData
+	3, // 5: pb.Entry.ClientInit:output_type -> pb.EntryClientInitDataReply
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_pb_vote_proto_init() }
@@ -198,6 +410,42 @@ func file_pb_vote_proto_init() {
 				return nil
 			}
 		}
+		file_pb_vote_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*EntryClientInitDataRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pb_vote_proto_msgTypes[3].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*EntryClientInitDataReply); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_pb_vote_proto_msgTypes[4].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SelfNode); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -205,9 +453,9 @@ func file_pb_vote_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_pb_vote_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
-			NumServices:   1,
+			NumServices:   2,
 		},
 		GoTypes:           file_pb_vote_proto_goTypes,
 		DependencyIndexes: file_pb_vote_proto_depIdxs,

@@ -18,3 +18,21 @@ message VoteReplyData{
   uint32 get = 1;
 }
 
+// 与master节点建立连接后 请求资料
+service Entry {
+  rpc ClientInit(EntryClientInitDataRequest) returns (EntryClientInitDataReply){}
+}
+message EntryClientInitDataRequest {
+  repeated SelfNode selfNode = 1; // 本机携带的节点
+  string selfId = 2;
+}
+message EntryClientInitDataReply {
+  repeated SelfNode selfNode = 1; // 本机携带的节点
+  string masterId = 2;
+  bool increment = 3; // 是否是增量节点
+}
+message SelfNode {
+  string id = 1;
+  string tcpAddr = 2;
+  string rpcAddr = 3;
+}

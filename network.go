@@ -115,12 +115,12 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 		n, err := conn.Read(data[:])
 		if err != nil && err == io.EOF {
 			// 连接已经断开了
-			mux.Lock()
+			mainNe.self.Mux.Lock()
 			if thisId == mainNe.self.MasterName {
 				mainNe.self.MasterName = "" // master节点置空
 			}
 			delete(mainNe.self.allNode, thisId)
-			mux.Unlock()
+			mainNe.self.Mux.Unlock()
 			return
 		}
 		// TODO 这里需要一个数据汇总的东西,什么是数据汇总的东西，其他节点向该节点发送信息
@@ -129,7 +129,10 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 		log.Println("get command", data[2])
 		switch data[2] {
 		case 1:
-			mainNe.self.LastLoseTime = time.Now().Unix()
+			mainNe.self.LastLoseTime = time.Now().UnixMilli()
+			log.Println("收到心跳")
+			mainNe.self.Status = Follower
+			mainNe.self.Channel <- Follower
 		case 2: // 接受到新节点的加入 返回 3确认
 
 			nd := &networkNode{}
@@ -142,10 +145,9 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 				Timeout: nd.Timeout,
 				Net:     &network{ListenConn: conn, DialConn: conn},
 			}
-			mux.Lock()
+			mainNe.self.Mux.Lock()
 			thisId = nd.Id
 			mainNe.self.allNode[nd.Id] = newNode
-			mux.Unlock()
 
 			send := make([]byte, 0)
 			send = append(send, 0, 0, 3)
@@ -159,7 +161,13 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 				log.Fatalln("connect master failed and json marshal", err)
 			}
 			send = append(send, d...)
-			conn.Write(send)
+			mainNe.self.Mux.Unlock()
+			//conn.Write(send)
+			for _, node := range mainNe.self.allNode {
+				log.Println("向", node.Id, "发送新节点请求")
+				node.Net.ListenConn.Write(send)
+			}
+			//
 		case 3: // 接收到master节点的确认资料 加入到全局节点中
 			nd := &networkNode{}
 			json.Unmarshal(data[3:n], nd)
@@ -169,13 +177,20 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 				RpcAddr: nd.RpcAddr,
 				Id:      nd.Id,
 				Timeout: nd.Timeout,
-				Net:     &network{ListenConn: conn, DialConn: conn},
+				Net:     &network{ListenConn: conn},
 			}
-			mux.Lock()
+			mainNe.self.Mux.Lock()
+			mainNe.self.Timer.Pause()
 			thisId = nd.Id
 			mainNe.self.allNode[nd.Id] = newNode
 			mainNe.self.MasterName = nd.Id
-			mux.Unlock()
+			mainNe.self.Timer.Restart()
+			mainNe.self.Mux.Unlock()
+
+			// 同步master节点的其他节点资料
+			FastRpcClientInit(mainNe.self, mainNe.self.allNode[mainNe.self.MasterName].RpcAddr)
+		case 4: // 来自master的日志
+
 		}
 	}
 
@@ -215,12 +230,36 @@ func receiveData(conn net.Conn) {
 }
 
 // HeartRequest 向其他节点发送心跳 以超时事件最短的为发送时间
-func (ne *network) HeartRequest(nodes map[string]*Node) {
+func (ne *network) HeartRequest() {
 	// TODO send heart to each node
 	log.Println(ne.self.Id, "向其他发送心跳")
 	log.Println(ne.self.allNode)
 	for _, v := range ne.self.allNode {
-		v.Net.ListenConn.Write([]byte{0, 0, 1})
+		log.Println(v.Id, "send heart")
+		if v.Net.DialConn == nil {
+			log.Println(v.Id, "建立新的连接")
+			conn, err := net.Dial("tcp", v.TcpAddr)
+			if err != nil {
+				log.Println("与子节点建立失败", err)
+				continue
+			}
+			v.Net.DialConn = conn
+		}
+		v.Net.DialConn.Write([]byte{0, 0, 1})
+	}
+}
+
+// CheckSlaveConnect 与其他子节点建立连接
+func (ne *network) CheckSlaveConnect() {
+	for _, i2 := range ne.self.allNode {
+		if i2.Net.DialConn == nil {
+			conn, err := net.Dial("tcp", i2.TcpAddr)
+			if err != nil {
+				log.Println("与子节点建立失败", err)
+				continue
+			}
+			i2.Net.DialConn = conn
+		}
 	}
 }
 

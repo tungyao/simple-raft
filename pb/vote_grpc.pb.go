@@ -103,3 +103,89 @@ var Vote_ServiceDesc = grpc.ServiceDesc{
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "pb/vote.proto",
 }
+
+// EntryClient is the client API for Entry service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type EntryClient interface {
+	ClientInit(ctx context.Context, in *EntryClientInitDataRequest, opts ...grpc.CallOption) (*EntryClientInitDataReply, error)
+}
+
+type entryClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewEntryClient(cc grpc.ClientConnInterface) EntryClient {
+	return &entryClient{cc}
+}
+
+func (c *entryClient) ClientInit(ctx context.Context, in *EntryClientInitDataRequest, opts ...grpc.CallOption) (*EntryClientInitDataReply, error) {
+	out := new(EntryClientInitDataReply)
+	err := c.cc.Invoke(ctx, "/pb.Entry/ClientInit", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// EntryServer is the server API for Entry service.
+// All implementations must embed UnimplementedEntryServer
+// for forward compatibility
+type EntryServer interface {
+	ClientInit(context.Context, *EntryClientInitDataRequest) (*EntryClientInitDataReply, error)
+	mustEmbedUnimplementedEntryServer()
+}
+
+// UnimplementedEntryServer must be embedded to have forward compatible implementations.
+type UnimplementedEntryServer struct {
+}
+
+func (UnimplementedEntryServer) ClientInit(context.Context, *EntryClientInitDataRequest) (*EntryClientInitDataReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ClientInit not implemented")
+}
+func (UnimplementedEntryServer) mustEmbedUnimplementedEntryServer() {}
+
+// UnsafeEntryServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to EntryServer will
+// result in compilation errors.
+type UnsafeEntryServer interface {
+	mustEmbedUnimplementedEntryServer()
+}
+
+func RegisterEntryServer(s grpc.ServiceRegistrar, srv EntryServer) {
+	s.RegisterService(&Entry_ServiceDesc, srv)
+}
+
+func _Entry_ClientInit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(EntryClientInitDataRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EntryServer).ClientInit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.Entry/ClientInit",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EntryServer).ClientInit(ctx, req.(*EntryClientInitDataRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// Entry_ServiceDesc is the grpc.ServiceDesc for Entry service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var Entry_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "pb.Entry",
+	HandlerType: (*EntryServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ClientInit",
+			Handler:    _Entry_ClientInit_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "pb/vote.proto",
+}
