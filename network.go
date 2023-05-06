@@ -57,11 +57,14 @@ type networkConn struct {
 func (ne *network) ConnectMaster(masterAddress string) {
 	// 正在连接master节点
 	log.Println("正在连接master节点", masterAddress)
-	conn, err := net.Dial("tcp", masterAddress)
-	if err != nil {
-		log.Fatalln("connect master failed", err)
+	if ne.DialConn == nil {
+		conn, err := net.Dial("tcp", masterAddress)
+		if err != nil {
+			log.Fatalln("connect master failed", err)
+		}
+		ne.DialConn = conn
 	}
-	ne.DialConn = conn
+
 	send := make([]byte, 0)
 	send = append(send, 0, 0, 2)
 	d, err := json.Marshal(&networkNode{
@@ -76,13 +79,12 @@ func (ne *network) ConnectMaster(masterAddress string) {
 	send = append(send, d...)
 	ne.DialConn.Write(send)
 
-	go handleConnection(ne, conn, nil)
+	go handleConnection(ne, ne.DialConn, nil)
 }
 
 func (ne *network) Run() {
 
 	// TODO 网络功能需要重新设计
-	ne.Rece = make(chan *networkConn, 512)
 	ln, err := net.Listen("tcp", ne.self.TcpAddr)
 	if err != nil {
 		fmt.Println(err)
@@ -108,20 +110,25 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 	// 正确的需求是什么
 	// 节点都是以listen方式监听在某一个端口上，其他节点加入的时候，需要记录conn结构体，还需要同时发送和接受消息
 	// 同时接收和发送数据
-	var data [1024]byte
 	var thisId string
 	for {
 		// 接收数据
-		n, err := conn.Read(data[:])
+		var data = make([]byte, 1024)
+		n, err := conn.Read(data)
+		log.Println(n, conn)
+		if n == 0 {
+			continue
+		}
 		if err != nil && err == io.EOF {
 			// 连接已经断开了
+			log.Println("--------------连接已断开")
 			mainNe.self.Mux.Lock()
 			if thisId == mainNe.self.MasterName {
 				mainNe.self.MasterName = "" // master节点置空
 			}
 			delete(mainNe.self.allNode, thisId)
 			mainNe.self.Mux.Unlock()
-			return
+			break
 		}
 		// TODO 这里需要一个数据汇总的东西,什么是数据汇总的东西，其他节点向该节点发送信息
 		// 思考 是不是要用channel ,有没有更加实用的方法
@@ -143,7 +150,7 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 				RpcAddr: nd.RpcAddr,
 				Id:      nd.Id,
 				Timeout: nd.Timeout,
-				Net:     &network{ListenConn: conn, DialConn: conn},
+				Net:     &network{ListenConn: conn},
 			}
 			mainNe.self.Mux.Lock()
 			thisId = nd.Id
@@ -170,6 +177,7 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 			//
 		case 3: // 接收到master节点的确认资料 加入到全局节点中
 			nd := &networkNode{}
+			log.Println(data)
 			json.Unmarshal(data[3:n], nd)
 			log.Printf("set master  %+v \n", nd)
 			newNode := &Node{
@@ -179,16 +187,33 @@ func handleConnection(mainNe *network, conn net.Conn, connections map[net.Conn]b
 				Timeout: nd.Timeout,
 				Net:     &network{ListenConn: conn},
 			}
-			mainNe.self.Mux.Lock()
 			mainNe.self.Timer.Pause()
+			mainNe.self.Mux.Lock()
 			thisId = nd.Id
 			mainNe.self.allNode[nd.Id] = newNode
+			if mainNe.self.MasterName != nd.Id {
+				log.Println("关闭", mainNe.self.MasterName, "的连接")
+				mainNe.self.Net.DialConn.Close()
+				mainNe.self.Net.DialConn = nil
+			}
 			mainNe.self.MasterName = nd.Id
-			mainNe.self.Timer.Restart()
 			mainNe.self.Mux.Unlock()
-
+			// 与主节点建立连接
+			if mainNe.self.Net.DialConn == nil {
+				log.Println("连接到主节点", mainNe.self.Net.DialConn)
+				mainNe.self.Net.ConnectMaster(mainNe.self.MasterName)
+				//conn, err := net.Dial("tcp", mainNe.self.allNode[mainNe.self.MasterName].TcpAddr)
+				//if err != nil {
+				//	log.Println("与子节点建立失败", err)
+				//	continue
+				//}
+				mainNe.self.Net.DialConn = conn
+			}
 			// 同步master节点的其他节点资料
 			FastRpcClientInit(mainNe.self, mainNe.self.allNode[mainNe.self.MasterName].RpcAddr)
+			mainNe.self.Channel <- Follower
+			mainNe.self.Status = Follower
+			mainNe.self.Timer.Restart()
 		case 4: // 来自master的日志
 
 		}
@@ -235,22 +260,16 @@ func (ne *network) HeartRequest() {
 	log.Println(ne.self.Id, "向其他发送心跳")
 	log.Println(ne.self.allNode)
 	for _, v := range ne.self.allNode {
-		log.Println(v.Id, "send heart")
-		if v.Net.DialConn == nil {
-			log.Println(v.Id, "建立新的连接")
-			conn, err := net.Dial("tcp", v.TcpAddr)
-			if err != nil {
-				log.Println("与子节点建立失败", err)
-				continue
-			}
-			v.Net.DialConn = conn
+		if v.Net.ListenConn != nil {
+			log.Println(v.Id, "send heart")
+			v.Net.ListenConn.Write([]byte{0, 0, 1})
+
 		}
-		v.Net.DialConn.Write([]byte{0, 0, 1})
 	}
 }
 
-// CheckSlaveConnect 与其他子节点建立连接
-func (ne *network) CheckSlaveConnect() {
+// CheckMasterConnect CheckSlaveConnect 与其他子节点建立连接
+func (ne *network) CheckMasterConnect() {
 	for _, i2 := range ne.self.allNode {
 		if i2.Net.DialConn == nil {
 			conn, err := net.Dial("tcp", i2.TcpAddr)

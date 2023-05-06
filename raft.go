@@ -125,10 +125,10 @@ func NewNode(selfNode *Node) {
 					log.Println("现在是领导者 +++++++++++++++++++++++++++++")
 					selfNode.Net.HeartRequest()
 					log.Println(selfNode.allNode)
-					if len(selfNode.allNode) == 0 { // 重新记录候选者
-						selfNode.Status = Candidate
-						selfNode.Channel <- Candidate
-					}
+					//if len(selfNode.allNode) == 0 { // 重新记录候选者
+					//	selfNode.Status = Candidate
+					//	selfNode.Channel <- Candidate
+					//}
 				}
 			case n := <-selfNode.Channel:
 				log.Println(selfNode.Id, "接受到channel", n)
@@ -136,7 +136,6 @@ func NewNode(selfNode *Node) {
 					selfNode.Mux.Lock()
 					// 暂停信号量 直到执行完成
 					selfNode.Timer.Pause()
-
 					log.Println(selfNode.Id, "进入候选者状态")
 					// 补充候选者状态 应该暂停其他网络请求
 					selfNode.Status = Candidate
@@ -192,6 +191,10 @@ func NewNode(selfNode *Node) {
 					if v >= uint32(len(selfNode.allNode)/2+1) {
 						log.Println(selfNode.Id, "总共获取", v, "超过", uint32(len(selfNode.allNode)/2+1))
 						// 进入领导者状态
+						// 通知其他节点建立连接
+						for _, node := range selfNode.allNode {
+							FastRpcVoteMasterConnect(selfNode, node)
+						}
 						selfNode.Status = Leader
 						selfNode.Channel <- Leader
 
@@ -207,10 +210,12 @@ func NewNode(selfNode *Node) {
 				} else if n == Leader {
 					// 向其他人发送心跳并接受到心跳 to :112
 					// 校验与其他节点是否建立了连接
-
+					selfNode.IsVote = false
 				} else {
 					// 最后是跟随者
 					log.Println("现在是 follower", selfNode.allNode)
+					selfNode.IsVote = false
+
 					//selfNode.IsVote = false
 					// 检查与master节点是不是有通信
 

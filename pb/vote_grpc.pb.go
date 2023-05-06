@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type VoteClient interface {
 	VoteRequest(ctx context.Context, in *VoteRequestData, opts ...grpc.CallOption) (*VoteReplyData, error)
+	MasterNotice(ctx context.Context, in *VoteMasterRequest, opts ...grpc.CallOption) (*VoteMasterReply, error)
 }
 
 type voteClient struct {
@@ -42,11 +43,21 @@ func (c *voteClient) VoteRequest(ctx context.Context, in *VoteRequestData, opts 
 	return out, nil
 }
 
+func (c *voteClient) MasterNotice(ctx context.Context, in *VoteMasterRequest, opts ...grpc.CallOption) (*VoteMasterReply, error) {
+	out := new(VoteMasterReply)
+	err := c.cc.Invoke(ctx, "/pb.Vote/MasterNotice", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // VoteServer is the server API for Vote service.
 // All implementations must embed UnimplementedVoteServer
 // for forward compatibility
 type VoteServer interface {
 	VoteRequest(context.Context, *VoteRequestData) (*VoteReplyData, error)
+	MasterNotice(context.Context, *VoteMasterRequest) (*VoteMasterReply, error)
 	mustEmbedUnimplementedVoteServer()
 }
 
@@ -56,6 +67,9 @@ type UnimplementedVoteServer struct {
 
 func (UnimplementedVoteServer) VoteRequest(context.Context, *VoteRequestData) (*VoteReplyData, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VoteRequest not implemented")
+}
+func (UnimplementedVoteServer) MasterNotice(context.Context, *VoteMasterRequest) (*VoteMasterReply, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MasterNotice not implemented")
 }
 func (UnimplementedVoteServer) mustEmbedUnimplementedVoteServer() {}
 
@@ -88,6 +102,24 @@ func _Vote_VoteRequest_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Vote_MasterNotice_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(VoteMasterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(VoteServer).MasterNotice(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/pb.Vote/MasterNotice",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(VoteServer).MasterNotice(ctx, req.(*VoteMasterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Vote_ServiceDesc is the grpc.ServiceDesc for Vote service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -98,6 +130,10 @@ var Vote_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "VoteRequest",
 			Handler:    _Vote_VoteRequest_Handler,
+		},
+		{
+			MethodName: "MasterNotice",
+			Handler:    _Vote_MasterNotice_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -70,7 +70,7 @@ func (t *timer) Start() {
 	}
 
 	if t.minHeartTimeoutTicker == nil {
-		t.minHeartTimeoutTicker = time.NewTicker(time.Millisecond * time.Duration(low))
+		t.minHeartTimeoutTicker = time.NewTicker(time.Millisecond * time.Duration(low) / 2)
 	}
 	t.minHeartTimeoutTicker.Reset(time.Millisecond * time.Duration(low))
 	t.mux.Unlock()

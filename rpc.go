@@ -71,6 +71,13 @@ func (v *VoteRpcImp) VoteRequest(ctx context.Context, data *pb.VoteRequestData) 
 	log.Println("发送 000 票")
 	return &pb.VoteReplyData{Get: 0}, nil
 }
+func (v *VoteRpcImp) MasterNotice(ctx context.Context, data *pb.VoteMasterRequest) (*pb.VoteMasterReply, error) {
+	v.self.Mux.Lock()
+	defer v.self.Mux.Unlock()
+	v.self.Net.ConnectMaster(v.self.allNode[data.Id].RpcAddr)
+
+	return &pb.VoteMasterReply{Id: data.Id}, nil
+}
 
 // EntryRpcImp 向master节点请求其他节点的资料
 type EntryRpcImp struct {
@@ -119,7 +126,27 @@ func (e *EntryRpcImp) ClientInit(ctx context.Context, data *pb.EntryClientInitDa
 	log.Println(out)
 	return out, nil
 }
+func FastRpcVoteMasterConnect(selfNode *Node, otherNode *Node) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	defer cancel()
+	log.Println(otherNode.Id, "rpc dial", otherNode)
+	conn, err := grpc.DialContext(ctx, otherNode.RpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Printf("did not connect: %v\n", err)
+		delete(otherNode.allNode, otherNode.Id)
+		log.Println("已经移除节点了")
+		return
+	}
+	defer conn.Close()
 
+	clt := pb.NewVoteClient(conn)
+	notice, err := clt.MasterNotice(ctx, &pb.VoteMasterRequest{Id: selfNode.Id})
+	if err != nil {
+		log.Println(err, notice)
+		return
+	}
+
+}
 func FastRpcClientInit(selfNode *Node, RpcAddr string) *pb.EntryClientInitDataReply {
 	log.Println("向master节点同步资料", selfNode.allNode)
 	selfNode.Mux.Lock()
