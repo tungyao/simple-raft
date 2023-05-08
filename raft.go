@@ -16,10 +16,6 @@
 package simple_raft
 
 import (
-	"context"
-	"github.com/tungyao/simple-raft/pb"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	"gopkg.in/yaml.v2"
 	"io"
 	"log"
@@ -61,6 +57,7 @@ type Node struct {
 	RpcAddr      string `yaml:"rpc_addr" json:"rpc_addr"`
 	allNode      map[string]*Node
 	MasterName   string
+	Vote         *Vote
 }
 
 func (n *Node) Change() {
@@ -72,6 +69,10 @@ func (n *Node) Change() {
 	//case Candidate:
 	//	n.Candidate
 	//}
+
+}
+
+func (n *Node) Sync() {
 
 }
 func init() {
@@ -98,9 +99,11 @@ func NewNode(selfNode *Node) {
 	}
 	selfNode.Net = new(network)
 	selfNode.Timer = new(timer)
+	selfNode.Vote = new(Vote)
 	log.Println(selfNode)
 	selfNode.Net.self = selfNode
 	selfNode.Timer.self = selfNode
+	selfNode.Vote.self = selfNode
 	go selfNode.Timer.Run()
 	defer fs.Close()
 
@@ -108,7 +111,6 @@ func NewNode(selfNode *Node) {
 	// 进入正式的流程
 	selfNode.Status = Follower
 	selfNode.Channel = make(chan int, 1)
-	go StartRpc(selfNode)
 	go func() {
 		for {
 			select {
@@ -140,61 +142,19 @@ func NewNode(selfNode *Node) {
 					// 补充候选者状态 应该暂停其他网络请求
 					selfNode.Status = Candidate
 					selfNode.TermIndex += 1
-					var group sync.WaitGroup
-					var replyData = make([]*pb.VoteReplyData, 0, len(selfNode.allNode))
-					group.Add(len(selfNode.allNode))
-					log.Println(selfNode.allNode)
-					// 这里还有一个问题 TODO 这里超时还没执行完成 下一个定时器又来了 这是肯定不行的
+					var v int
 					for _, node := range selfNode.allNode {
-						n := node
-						go func() {
-							defer group.Done()
-							// 超时处理
-							ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
-							defer cancel()
-							log.Println(selfNode.Id, "rpc dial", n.RpcAddr)
-							conn, err := grpc.DialContext(ctx, n.RpcAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-							if err != nil {
-								log.Printf("did not connect: %v\n", err)
-								delete(selfNode.allNode, n.Id)
-								log.Println("已经移除节点了")
-								return
-							}
-							defer conn.Close()
-
-							clt := pb.NewVoteClient(conn)
-							reply, err := clt.VoteRequest(ctx, &pb.VoteRequestData{
-								TermIndex: selfNode.TermIndex,
-								LogIndex:  selfNode.LogIndex,
-							})
-							if err != nil {
-								log.Printf("did not connect: %v\n", err)
-								delete(selfNode.allNode, n.Id)
-								log.Println("已经移除节点了")
-								return
-							}
-							log.Println("vote replay", selfNode.Id, err, reply)
-							replyData = append(replyData, reply)
-						}()
-
+						ne := node
+						log.Println("向", ne.Id, "请求票")
+						v += selfNode.Vote.RequestVote(ne)
 					}
-					group.Wait()
 					// 向其他几点发送投票请求
-					var v uint32
 					// 统计获得票
-					for _, datum := range replyData {
-						if datum != nil {
-							v += datum.Get
-						}
-					}
 					log.Println(selfNode.Id, "统计票", v)
-					if v >= uint32(len(selfNode.allNode)/2+1) {
-						log.Println(selfNode.Id, "总共获取", v, "超过", uint32(len(selfNode.allNode)/2+1))
+					if v >= len(selfNode.allNode)/2+1 {
+						log.Println(selfNode.Id, "总共获取", v, "超过", len(selfNode.allNode)/2+1)
 						// 进入领导者状态
 						// 通知其他节点建立连接
-						for _, node := range selfNode.allNode {
-							FastRpcVoteMasterConnect(selfNode, node)
-						}
 						selfNode.Status = Leader
 						selfNode.Channel <- Leader
 

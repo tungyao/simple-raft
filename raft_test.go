@@ -94,67 +94,6 @@ func TestSelect(t *testing.T) {
 	}
 }
 
-func TestNode1(t *testing.T) {
-	go func() {
-		node := &Node{
-			Addr:         "127.0.0.1:3001",
-			Rate:         0,
-			Id:           "node2",
-			Status:       0,
-			Net:          new(network),
-			Timeout:      100,
-			LastLoseTime: 0,
-			Channel:      nil,
-			Message:      nil,
-			LogIndex:     0,
-			TermIndex:    0,
-			IsVote:       false,
-			Timer:        new(timer),
-		}
-		NewNode(node)
-		go node.Timer.Run()
-		node.Net.Run()
-	}()
-	go func() {
-		node := &Node{
-			Addr:         "127.0.0.1:3002",
-			Rate:         0,
-			Id:           "node3",
-			Status:       0,
-			Net:          new(network),
-			Timeout:      100,
-			LastLoseTime: 0,
-			Channel:      nil,
-			Message:      nil,
-			LogIndex:     0,
-			TermIndex:    0,
-			IsVote:       false,
-			Timer:        new(timer),
-		}
-		NewNode(node)
-		go node.Timer.Run()
-		node.Net.Run()
-	}()
-	node := &Node{
-		Addr:         "127.0.0.1:3000",
-		Rate:         0,
-		Id:           "node1",
-		Status:       0,
-		Net:          new(network),
-		Timeout:      100,
-		LastLoseTime: 0,
-		Channel:      nil,
-		Message:      nil,
-		LogIndex:     0,
-		TermIndex:    0,
-		IsVote:       false,
-		Timer:        new(timer),
-	}
-	NewNode(node)
-	go node.Timer.Run()
-	node.Net.Run()
-
-}
 func TestNode2(t *testing.T) {
 
 }
@@ -163,19 +102,19 @@ func TestNode3(t *testing.T) {
 }
 
 func TestPlus(t *testing.T) {
-	var arr1 = make([]int, 0)
+	var arr1 = make([]byte, 0)
 	a := 2000
 
-	arr1 = append(arr1, a&0xff)
-	arr1 = append(arr1, (a>>8)&0xff)
+	//arr1 = append(arr1, a&0xff)
+	//arr1 = append(arr1, (a>>8)&0xff)
 	//arr1 = append(arr1, (a>>16)&0xff)
 	//arr1 = append(arr1, (a>>24)&0xff)
-	//uint642uint8(a, unsafe.Pointer(&arr1))
+	arr1 = uint642uint8(a, arr1)
 	log.Println(arr1)
-	log.Println(arr1[0]&0xff + ((arr1[1] & 0xff) << 8))
-	//b :=
-	//	uint82Uint64(arr1[0], arr1[1], arr1[2], arr1[3], arr1[4], arr1[5], arr1[6], arr1[7])
-	//log.Println(b)
+	//log.Println(arr1[0]&0xff + ((arr1[1] & 0xff) << 8))
+	b :=
+		uint82Uint64(arr1[0], arr1[1], arr1[2], arr1[3], arr1[4], arr1[5], arr1[6], arr1[7])
+	log.Println(b)
 
 }
 func TestTimeout(t *testing.T) {

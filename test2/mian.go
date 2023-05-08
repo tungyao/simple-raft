@@ -4,6 +4,7 @@ import (
 	"flag"
 	sr "github.com/tungyao/simple-raft"
 	"log"
+	"time"
 )
 
 var port string
@@ -13,9 +14,9 @@ var master string
 
 func main() {
 	flag.StringVar(&port, "p", "3000", "port")
-	flag.StringVar(&id, "id", "node1", "id")
+	flag.StringVar(&id, "id", "node2", "id")
 	flag.StringVar(&master, "master", "127.0.0.1:3000", "127.0.0.1:3000")
-	flag.BoolVar(&slave, "slave", false, "slave")
+	flag.BoolVar(&slave, "slave", true, "slave")
 	flag.Parse()
 	node := &sr.Node{
 		TcpAddr: "127.0.0.1:" + port,
@@ -24,7 +25,10 @@ func main() {
 	log.Println(id, port, master, slave)
 	sr.NewNode(node)
 	if slave {
-		node.Net.ConnectMaster(master)
+		go func() {
+			time.Sleep(time.Second * 1)
+			node.Net.ConnectMaster(master)
+		}()
 	}
 	node.Net.Run()
 
