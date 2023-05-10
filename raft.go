@@ -157,7 +157,10 @@ func NewNode(selfNode *Node) {
 						// 通知其他节点建立连接
 						selfNode.Status = Leader
 						selfNode.Channel <- Leader
-
+						// 向子节点提示建立连接
+						for _, node := range selfNode.allNode {
+							selfNode.Net.MasterConnect(node.TcpAddr)
+						}
 					} else {
 						// 没有获取到票，退回到follower状态
 						// TODO 还有权重的影响

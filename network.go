@@ -53,15 +53,18 @@ type networkConn struct {
 //
 
 // ConnectMaster TODO 需要有一个先master节点主动连接的动作
-func (ne *network) ConnectMaster(masterAddress string) {
+func (ne *network) ConnectMaster(master *Node) {
 	// 正在连接master节点
-	log.Println("正在连接master节点", masterAddress)
-	if ne.DialConn == nil {
-		conn, err := net.Dial("tcp", masterAddress)
+	if master.Net == nil {
+		master.Net = new(network)
+	}
+	log.Println("正在连接master节点", master.TcpAddr)
+	if master.Net.DialConn == nil {
+		conn, err := net.Dial("tcp", master.TcpAddr)
 		if err != nil {
 			log.Fatalln("connect master failed", err)
 		}
-		ne.DialConn = conn
+		master.Net.DialConn = conn
 	}
 
 	send := make([]byte, 0)
@@ -75,16 +78,16 @@ func (ne *network) ConnectMaster(masterAddress string) {
 	if err != nil {
 		log.Fatalln("connect master failed and json marshal", err)
 	}
-	go handleConnection(ne, ne.DialConn, func() {
+	go handleConnection(ne, master.Net.DialConn, func() {
 		// 向master节点同步资料
 	})
 
 	send = append(send, d...)
-	ne.DialConn.Write(send)
+	master.Net.DialConn.Write(send)
 	// TODO 粘包问题以后在解决
 
 	time.Sleep(time.Second)
-	ne.DialConn.Write([]byte{0, 0, 4})
+	master.Net.DialConn.Write([]byte{0, 0, 4})
 
 }
 
@@ -129,7 +132,7 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 		log.Println(err)
 		if err != nil && (err == io.EOF || err == io.ErrUnexpectedEOF) {
 			// 连接已经断开了
-			log.Println("--------------连接已断开")
+			log.Println(thisId, "--------------连接已断开")
 			mainNe.self.Mux.Lock()
 			delete(mainNe.self.allNode, thisId)
 			mainNe.self.Mux.Unlock()
@@ -183,6 +186,11 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 				// 应该是向其他节点发送新节点的加入通知
 				for _, node := range mainNe.self.allNode {
 					if node.Id != nd.Id {
+						send[2] = 8
+						log.Println("向", node.Id, "发送新节点同步请求") // TODO 好像没有生效
+						node.Net.ListenConn.Write(send)
+					} else {
+						send[2] = 3
 						log.Println("向", node.Id, "发送新节点请求") // TODO 好像没有生效
 						node.Net.ListenConn.Write(send)
 					}
@@ -198,13 +206,13 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 					RpcAddr: nd.RpcAddr,
 					Id:      nd.Id,
 					Timeout: nd.Timeout,
-					Net:     &network{ListenConn: conn},
+					Net:     &network{ListenConn: conn, DialConn: conn},
 				}
 				mainNe.self.Timer.Pause()
 				mainNe.self.Mux.Lock()
 				thisId = nd.Id
 				mainNe.self.allNode[nd.Id] = newNode
-				mainNe.self.MasterName = nd.Id
+				//mainNe.self.MasterName = nd.Id
 				mainNe.self.Mux.Unlock()
 				mainNe.self.Channel <- Follower
 				mainNe.self.Status = Follower
@@ -214,6 +222,7 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 				//mainNe.self.Net.Sync()
 
 			case 4: // 收到其他节点同步节点的信息
+				log.Println("收到其他节点同步节点的信息")
 				nodes := make([]*networkNode, 0)
 				for _, node := range mainNe.self.allNode {
 					nodes = append(nodes, &networkNode{
@@ -245,37 +254,30 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 							TcpAddr: node.TcpAddr,
 							Timeout: node.Timeout,
 							Id:      node.Id,
+							Net:     new(network),
+							Vote:    new(Vote),
 						}
 					}
 				}
 				log.Println("同步完成")
-			case 6: // 其他节点向自己请求投票
-				otherTerm := uint82Uint64(data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10])
-				otherIndex := uint82Uint64(data[11], data[12], data[13], data[14], data[15], data[16], data[17], data[18])
-				send := []byte{0, 0, 7}
-				log.Println("收到请求票", otherTerm, otherIndex, mainNe.self.TermIndex, mainNe.self.LogIndex)
-				if mainNe.self.TermIndex > otherTerm {
-					// term index 更大，优先级更高
-					send = append(send, 0)
-
-				} else if mainNe.self.TermIndex < otherTerm {
-					// term index 更小，优先级更低
-					send = append(send, 1)
-
-				} else {
-					// term index 相同，比较 log index
-					if mainNe.self.LogIndex > otherIndex {
-						// log index 更大，优先级更高
-						send = append(send, 0)
-
-					} else {
-						// log index 更小或相等，优先级更低
-						send = append(send, 1)
-					}
+			case 6:
+			case 7: // 与master节点建立连接
+				mainNe.self.Mux.RLock()
+				mainNe.self.Timer.Pause()
+				log.Println(mainNe.self.allNode, string(data[3:n]))
+				mainNe.self.MasterName = string(data[3:n])
+				if v, ok := mainNe.self.allNode[string(data[3:n])]; ok {
+					mainNe.self.Net.ConnectMaster(v)
 				}
-				conn.Write(send)
-			case 7: // 接受票
-				mainNe.self.Vote.channel <- int(data[4])
+				mainNe.self.Timer.Restart()
+				mainNe.self.Mux.RUnlock()
+				mainNe.self.Status = Follower
+				mainNe.self.Channel <- Follower
+			case 8: // 收到master通知 需要同步新节点
+				//mainNe.self.Net.DialConn
+				if v, ok := mainNe.self.allNode[mainNe.self.MasterName]; ok {
+					v.Net.DialConn.Write([]byte{0, 0, 4})
+				}
 			}
 		}(data, n)
 	}
@@ -287,27 +289,28 @@ func (ne *network) HeartRequest() {
 	// TODO send heart to each node
 	log.Println(ne.self.Id, "向其他发送心跳")
 	log.Println(ne.self.allNode)
+	ne.self.Mux.RLock()
+	defer ne.self.Mux.RUnlock()
 	for _, v := range ne.self.allNode {
 		if v.Net.ListenConn != nil {
 			log.Println(v.Id, "send heart")
 			v.Net.ListenConn.Write([]byte{0, 0, 1})
-
+		} else {
+			ne.self.Net.MasterConnect(v.TcpAddr)
 		}
 	}
 }
 
-// CheckMasterConnect CheckSlaveConnect 与其他子节点建立连接
-func (ne *network) CheckMasterConnect() {
-	for _, i2 := range ne.self.allNode {
-		if i2.Net.DialConn == nil {
-			conn, err := net.Dial("tcp", i2.TcpAddr)
-			if err != nil {
-				log.Println("与子节点建立失败", err)
-				continue
-			}
-			i2.Net.DialConn = conn
-		}
+// MasterConnect CheckMasterCheckSlaveConnect 与其他子节点建立连接
+func (ne *network) MasterConnect(tcpAddr string) {
+	send := []byte{0, 0, 7}
+	dial, err := net.Dial("tcp", tcpAddr)
+	if err != nil {
+		log.Fatalln("发送失败", err)
 	}
+	send = append(send, []byte(ne.self.Id)...)
+	_, err = dial.Write(send)
+	dial.Close()
 }
 
 // NoticeAnotherNodeJoined 通知其他节点新节点的加入

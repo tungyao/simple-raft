@@ -24,7 +24,7 @@ func main() {
 	log.Println(id, port, master, slave)
 	sr.NewNode(node)
 	if slave {
-		node.Net.ConnectMaster(master)
+		node.Net.ConnectMaster(&sr.Node{TcpAddr: master})
 	}
 	node.Net.Run()
 
