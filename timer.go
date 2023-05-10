@@ -3,7 +3,6 @@ package simple_raft
 // 负责定时相关的东西
 
 import (
-	"log"
 	"sync"
 	"time"
 )
@@ -28,15 +27,11 @@ func (t *timer) Run() {
 	for {
 		select {
 		case <-t.ticker.C:
-			log.Println("timeout ticker send")
 		case <-t.minHeartTimeoutTicker.C:
-			log.Println("heart timeout ticker send")
 		}
 		t.mux.RLock()
 		// equal true , it's not stopping
-		log.Println("same status", t.same)
 		if t.same == true {
-			log.Println(t.self.Id, "发送ticker")
 			t.Ticker <- struct{}{}
 		}
 		t.mux.RUnlock()
@@ -46,14 +41,12 @@ func (t *timer) Run() {
 func (t *timer) Pause() {
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	log.Println(t.self.Id, "ticket暂停")
 	t.same = false
 }
 
 func (t *timer) Restart() {
 	t.mux.Lock()
 	defer t.mux.Unlock()
-	log.Println(t.self.Id, "ticket恢复")
 	t.same = true
 }
 

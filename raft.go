@@ -18,7 +18,6 @@ package simple_raft
 import (
 	"gopkg.in/yaml.v2"
 	"io"
-	"log"
 	"os"
 	"sync"
 	"time"
@@ -76,7 +75,6 @@ func (n *Node) Sync() {
 
 }
 func init() {
-	log.SetFlags(log.Llongfile | log.Ltime)
 }
 
 // TODO 丢失链接的node 需要用什么办法从slice中移除
@@ -89,25 +87,21 @@ func NewNode(selfNode *Node) {
 	fs, err := os.Open(selfNode.Id + ".yml")
 	data, err := io.ReadAll(fs)
 	if err != nil {
-		log.Fatalf("无法读取YAML文件：%v", err)
 	}
 
 	// 将YAML数据反序列化为结构体
 	err = yaml.Unmarshal(data, &selfNode)
 	if err != nil {
-		log.Fatalf("无法反序列化YAML数据：%v", err)
 	}
 	selfNode.Net = new(network)
 	selfNode.Timer = new(timer)
 	selfNode.Vote = new(Vote)
-	log.Println(selfNode)
 	selfNode.Net.self = selfNode
 	selfNode.Timer.self = selfNode
 	selfNode.Vote.self = selfNode
 	go selfNode.Timer.Run()
 	defer fs.Close()
 
-	log.Printf("%v", selfNode.allNode)
 	// 进入正式的流程
 	selfNode.Status = Follower
 	selfNode.Channel = make(chan int, 1)
@@ -115,44 +109,35 @@ func NewNode(selfNode *Node) {
 		for {
 			select {
 			case <-selfNode.Timer.Ticker:
-				log.Println("收到ticker", selfNode.Status, selfNode.LastLoseTime, time.Now().Unix())
 				if selfNode.Status == Follower {
 					// 检测超时进入选举流程
 					if time.Now().UnixMilli()-selfNode.LastLoseTime > int64(selfNode.Timeout) {
-						log.Println("检测master节点超时", selfNode.LastLoseTime, selfNode.Timeout)
 						selfNode.Channel <- Candidate
 					}
 				} else if selfNode.Status == Leader {
 					//
-					log.Println("现在是领导者 +++++++++++++++++++++++++++++")
 					selfNode.Net.HeartRequest()
-					log.Println(selfNode.allNode)
 					//if len(selfNode.allNode) == 0 { // 重新记录候选者
 					//	selfNode.Status = Candidate
 					//	selfNode.Channel <- Candidate
 					//}
 				}
 			case n := <-selfNode.Channel:
-				log.Println(selfNode.Id, "接受到channel", n)
 				if n == Candidate {
 					selfNode.Mux.Lock()
 					// 暂停信号量 直到执行完成
 					selfNode.Timer.Pause()
-					log.Println(selfNode.Id, "进入候选者状态")
 					// 补充候选者状态 应该暂停其他网络请求
 					selfNode.Status = Candidate
 					selfNode.TermIndex += 1
 					var v int
 					for _, node := range selfNode.allNode {
 						ne := node
-						log.Println("向", ne.Id, "请求票")
 						v += selfNode.Vote.RequestVote(ne)
 					}
 					// 向其他几点发送投票请求
 					// 统计获得票
-					log.Println(selfNode.Id, "统计票", v)
 					if v >= len(selfNode.allNode)/2+1 {
-						log.Println(selfNode.Id, "总共获取", v, "超过", len(selfNode.allNode)/2+1)
 						// 进入领导者状态
 						// 通知其他节点建立连接
 						selfNode.Status = Leader
@@ -176,7 +161,6 @@ func NewNode(selfNode *Node) {
 					selfNode.IsVote = false
 				} else {
 					// 最后是跟随者
-					log.Println("现在是 follower", selfNode.allNode)
 					selfNode.IsVote = false
 
 					//selfNode.IsVote = false

@@ -1,8 +1,8 @@
 package simple_raft
 
 import (
-	"log"
 	"net"
+	"time"
 )
 
 // TODO 需要从 raft:116 移植过来
@@ -18,21 +18,18 @@ type Vote struct {
 func (v *Vote) RequestVote(node *Node) int {
 	send := []byte{0, 0, 6}
 	// 写入任期编号
-	log.Println("发送编号", v.self.TermIndex, v.self.LogIndex)
 	send = uint642uint8(v.self.TermIndex, send)
 	// 写入log编号
 	send = uint642uint8(v.self.LogIndex, send)
 	// 写入id
 	dial, err := net.Dial("tcp", node.TcpAddr)
 	if err != nil {
-		log.Fatalln("发送失败", err)
 	}
 	data := make([]byte, 4)
-	_, err = dial.Write(send)
-
+	_, err = dial.Write(pack(send))
+	dial.SetReadDeadline(time.Now().Add(time.Second * 5))
 	dial.Read(data)
 	// 等待返回
 	dial.Close()
-	log.Println("获得了多少票", data[3])
 	return int(data[3])
 }

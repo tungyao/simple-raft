@@ -1,7 +1,7 @@
 package simple_raft
 
 import (
-	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -43,79 +43,6 @@ type networkConn struct {
 // In fact , there's a node list in program
 // so, Reload from the yaml file
 
-// 协议 按照byte=8位
-// 1 | 2          | 3                  | 4 | 5               | 6 | 7 | 8 |
-//
-//	是否接续上一报文   操作码
-//	                 0 get heart
-//	                 1 send heart
-//	                 2 join group        heart for timeout
-//
-
-// ConnectMaster TODO 需要有一个先master节点主动连接的动作
-func (ne *network) ConnectMaster(master *Node) {
-	// 正在连接master节点
-	if master.Net == nil {
-		master.Net = new(network)
-	}
-	log.Println("正在连接master节点", master.TcpAddr)
-	if master.Net.DialConn == nil {
-		conn, err := net.Dial("tcp", master.TcpAddr)
-		if err != nil {
-			log.Fatalln("connect master failed", err)
-		}
-		master.Net.DialConn = conn
-	}
-
-	send := make([]byte, 0)
-	send = append(send, 0, 0, 2)
-	d, err := json.Marshal(&networkNode{
-		TcpAddr: ne.self.TcpAddr,
-		Id:      ne.self.Id,
-		Timeout: 3000,
-		RpcAddr: ne.self.RpcAddr,
-	})
-	if err != nil {
-		log.Fatalln("connect master failed and json marshal", err)
-	}
-	go handleConnection(ne, master.Net.DialConn, func() {
-		// 向master节点同步资料
-	})
-
-	send = append(send, d...)
-	master.Net.DialConn.Write(send)
-	// TODO 粘包问题以后在解决
-
-	time.Sleep(time.Second)
-	master.Net.DialConn.Write([]byte{0, 0, 4})
-
-}
-
-func (ne *network) Run() {
-
-	// TODO 网络功能需要重新设计
-	ln, err := net.Listen("tcp", ne.self.TcpAddr)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer ln.Close()
-
-	log.Println("Listening on :", ne.self.TcpAddr)
-	connections := make(map[net.Conn]context.CancelFunc)
-	for {
-		conn, err := ln.Accept()
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		ctx := context.Background()
-		_, connections[conn] = context.WithCancel(ctx)
-		go handleConnection(ne, conn, nil)
-
-	}
-}
-
 func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 	// 正确的需求是什么
 	// 节点都是以listen方式监听在某一个端口上，其他节点加入的时候，需要记录conn结构体，还需要同时发送和接受消息
@@ -123,42 +50,40 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 	var thisId string
 	for {
 		// 接收数据
-		var data = make([]byte, 1024)
 		if conn == nil {
-			log.Println("准备退出协程")
 			return
 		}
-		n, err := conn.Read(data)
-		log.Println(err)
+		data, err := receive(conn)
 		if err != nil && (err == io.EOF || err == io.ErrUnexpectedEOF) {
 			// 连接已经断开了
-			log.Println(thisId, "--------------连接已断开")
 			mainNe.self.Mux.Lock()
+			if thisId == mainNe.self.MasterName {
+				mainNe.self.MasterName = ""
+			}
 			delete(mainNe.self.allNode, thisId)
 			mainNe.self.Mux.Unlock()
 			return
 		}
-		go func([]byte, int) {
+		if len(data) == 0 {
+			return
+		}
+		if len(data) > 2 {
+			log.Println("get command", data[2])
+		}
+		go func([]byte) {
 
-			// TODO 这里需要一个数据汇总的东西,什么是数据汇总的东西，其他节点向该节点发送信息
-			// 思考 是不是要用channel ,有没有更加实用的方法
 			// 加入集群
-			log.Println("*******get command", data[2])
 			switch data[2] {
 			case 1:
 				mainNe.self.LastLoseTime = time.Now().UnixMilli()
-				log.Println("收到心跳")
 				mainNe.self.Status = Follower
 				mainNe.self.Channel <- Follower
 			case 2: // 接受到新节点的加入 返回 3确认
 
 				nd := &networkNode{}
-				log.Println(data, n, string(data[3:n]), data[3:n])
-				err = json.Unmarshal(data[3:n], nd)
+				err = json.Unmarshal(data[3:], nd)
 				if err != nil {
-					log.Fatalln(err)
 				}
-				log.Printf("get new node %+v \n", nd)
 				newNode := &Node{
 					TcpAddr: nd.TcpAddr,
 					RpcAddr: nd.RpcAddr,
@@ -179,7 +104,6 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 					RpcAddr: mainNe.self.RpcAddr,
 				})
 				if err != nil {
-					log.Fatalln("connect master failed and json marshal", err)
 				}
 				send = append(send, d...)
 				mainNe.self.Mux.Unlock()
@@ -187,20 +111,16 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 				for _, node := range mainNe.self.allNode {
 					if node.Id != nd.Id {
 						send[2] = 8
-						log.Println("向", node.Id, "发送新节点同步请求") // TODO 好像没有生效
-						node.Net.ListenConn.Write(send)
+						node.Net.ListenConn.Write(pack(send))
 					} else {
 						send[2] = 3
-						log.Println("向", node.Id, "发送新节点请求") // TODO 好像没有生效
-						node.Net.ListenConn.Write(send)
+						node.Net.ListenConn.Write(pack(send))
 					}
 				}
 				//
 			case 3: // 接收到master节点的确认资料 加入到全局节点中
 				nd := &networkNode{}
-				log.Println(data)
-				json.Unmarshal(data[3:n], nd)
-				log.Printf("set master  %+v \n", nd)
+				json.Unmarshal(data[3:], nd)
 				newNode := &Node{
 					TcpAddr: nd.TcpAddr,
 					RpcAddr: nd.RpcAddr,
@@ -222,7 +142,6 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 				//mainNe.self.Net.Sync()
 
 			case 4: // 收到其他节点同步节点的信息
-				log.Println("收到其他节点同步节点的信息")
 				nodes := make([]*networkNode, 0)
 				for _, node := range mainNe.self.allNode {
 					nodes = append(nodes, &networkNode{
@@ -236,19 +155,14 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 				syncDataPre.Node = nodes
 				d, err := json.Marshal(syncDataPre)
 				if err != nil {
-					log.Fatalln(err)
 				}
-				log.Println(string(d))
-				conn.Write(append([]byte{0, 0, 5}, d...))
-			case 5:
+				conn.Write(pack(append([]byte{0, 0, 5}, d...)))
+			case 5: // 收到master节点同步
 				syncDataPre := &syncData{}
-				err = json.Unmarshal(data[3:n], syncDataPre)
+				err = json.Unmarshal(data[3:], syncDataPre)
 				if err != nil {
-					log.Fatalln(err)
 				}
-				log.Println(data)
 				for _, node := range syncDataPre.Node {
-					log.Println(node)
 					if node.Id != mainNe.self.Id {
 						mainNe.self.allNode[node.Id] = &Node{
 							TcpAddr: node.TcpAddr,
@@ -259,14 +173,37 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 						}
 					}
 				}
-				log.Println("同步完成")
 			case 6:
+				otherTerm := uint82Uint64(data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10])
+				otherIndex := uint82Uint64(data[11], data[12], data[13], data[14], data[15], data[16], data[17], data[18])
+				send := []byte{0, 0, 7}
+				log.Println("收到请求票 other term", otherTerm, "other log", otherIndex, "self term", mainNe.self.TermIndex, "self log", mainNe.self.LogIndex)
+				if mainNe.self.TermIndex > otherTerm {
+					// term index 更大，优先级更高
+					send = append(send, 0)
+
+				} else if mainNe.self.TermIndex < otherTerm {
+					// term index 更小，优先级更低
+					send = append(send, 1)
+
+				} else {
+					// term index 相同，比较 log index
+					if mainNe.self.LogIndex > otherIndex {
+						// log index 更大，优先级更高
+						send = append(send, 0)
+
+					} else {
+						// log index 更小或相等，优先级更低
+						send = append(send, 1)
+					}
+				}
+				log.Println("发送投票", send[3])
+				conn.Write(pack(send))
 			case 7: // 与master节点建立连接
 				mainNe.self.Mux.RLock()
 				mainNe.self.Timer.Pause()
-				log.Println(mainNe.self.allNode, string(data[3:n]))
-				mainNe.self.MasterName = string(data[3:n])
-				if v, ok := mainNe.self.allNode[string(data[3:n])]; ok {
+				mainNe.self.MasterName = string(data[3:])
+				if v, ok := mainNe.self.allNode[string(data[3:])]; ok {
 					mainNe.self.Net.ConnectMaster(v)
 				}
 				mainNe.self.Timer.Restart()
@@ -276,10 +213,10 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 			case 8: // 收到master通知 需要同步新节点
 				//mainNe.self.Net.DialConn
 				if v, ok := mainNe.self.allNode[mainNe.self.MasterName]; ok {
-					v.Net.DialConn.Write([]byte{0, 0, 4})
+					v.Net.DialConn.Write(pack([]byte{0, 0, 4}))
 				}
 			}
-		}(data, n)
+		}(data)
 	}
 
 }
@@ -287,14 +224,11 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 // HeartRequest 向其他节点发送心跳 以超时事件最短的为发送时间
 func (ne *network) HeartRequest() {
 	// TODO send heart to each node
-	log.Println(ne.self.Id, "向其他发送心跳")
-	log.Println(ne.self.allNode)
 	ne.self.Mux.RLock()
 	defer ne.self.Mux.RUnlock()
 	for _, v := range ne.self.allNode {
 		if v.Net.ListenConn != nil {
-			log.Println(v.Id, "send heart")
-			v.Net.ListenConn.Write([]byte{0, 0, 1})
+			v.Net.ListenConn.Write(pack([]byte{0, 0, 1}))
 		} else {
 			ne.self.Net.MasterConnect(v.TcpAddr)
 		}
@@ -306,11 +240,66 @@ func (ne *network) MasterConnect(tcpAddr string) {
 	send := []byte{0, 0, 7}
 	dial, err := net.Dial("tcp", tcpAddr)
 	if err != nil {
-		log.Fatalln("发送失败", err)
 	}
 	send = append(send, []byte(ne.self.Id)...)
-	_, err = dial.Write(send)
+	_, err = dial.Write(pack(send))
 	dial.Close()
+}
+
+// ConnectMaster TODO 需要有一个先master节点主动连接的动作
+func (ne *network) ConnectMaster(master *Node) {
+	// 正在连接master节点
+	if master.Net == nil {
+		master.Net = new(network)
+	}
+	if master.Net.DialConn == nil {
+		conn, err := net.Dial("tcp", master.TcpAddr)
+		if err != nil {
+		}
+		master.Net.DialConn = conn
+	}
+
+	send := make([]byte, 0)
+	send = append(send, 0, 0, 2)
+	d, err := json.Marshal(&networkNode{
+		TcpAddr: ne.self.TcpAddr,
+		Id:      ne.self.Id,
+		Timeout: 3000,
+		RpcAddr: ne.self.RpcAddr,
+	})
+	if err != nil {
+	}
+	go handleConnection(ne, master.Net.DialConn, nil)
+
+	send = append(send, d...)
+	master.Net.DialConn.Write(pack(send))
+	// TODO 粘包问题以后在解决
+
+	time.Sleep(time.Second)
+	master.Net.DialConn.Write(pack([]byte{0, 0, 4}))
+
+}
+
+func (ne *network) Run() {
+
+	// TODO 网络功能需要重新设计
+	ln, err := net.Listen("tcp", ne.self.TcpAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer ln.Close()
+
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+
+		go handleConnection(ne, conn, nil)
+
+	}
 }
 
 // NoticeAnotherNodeJoined 通知其他节点新节点的加入
@@ -325,21 +314,8 @@ type syncData struct {
 func (ne *network) Sync() {
 	_, err := ne.DialConn.Write([]byte{0, 0, 4})
 	if err != nil {
-		log.Println(err)
 		return
 	}
-}
-
-// Pack 打包
-func (ne *network) Pack(data []byte) {
-	for i := len(data) / (1024 - 2 - 3); i < len(data); i++ {
-
-	}
-}
-
-// Unpack 解包
-func (ne *network) Unpack() {
-
 }
 
 func uint82Uint64[T int | uint8](r ...T) uint64 {
@@ -365,4 +341,49 @@ func uint642uint8[T int | uint64, S uint8](n T, arr []S) []S {
 		S((n>>56)&0xff),
 	)
 	return arr
+}
+
+// --------
+// 解决tcp粘包的问题
+
+const (
+	PacketHeadLength = 4 // 数据包头部长度为 7
+)
+
+// Pack 打包
+func pack(data []byte) []byte {
+	size := len(data)
+	buffer := make([]byte, size+PacketHeadLength)
+	binary.BigEndian.PutUint32(buffer[:PacketHeadLength], uint32(size))
+	copy(buffer[PacketHeadLength:], data)
+	return buffer
+}
+
+// Unpack 解包
+func unpack(buffer []byte) ([]byte, uint32, error) {
+	size := binary.BigEndian.Uint32(buffer[:PacketHeadLength])
+	if uint32(len(buffer)) < (size + PacketHeadLength) {
+		return nil, 0, fmt.Errorf("packet too small")
+	}
+	return buffer[PacketHeadLength : PacketHeadLength+size], size, nil
+}
+func receive(conn net.Conn) ([]byte, error) {
+	buffer := make([]byte, 1024)
+	result := make([]byte, 0)
+	for {
+		n, err := conn.Read(buffer)
+		if err != nil {
+			return nil, err
+		}
+		data, size, err := unpack(buffer[:n])
+		if err != nil {
+			return nil, err
+		}
+		log.Println(size)
+		result = append(result, data...)
+		if int(size) == len(result) {
+			break
+		}
+	}
+	return result, nil
 }
