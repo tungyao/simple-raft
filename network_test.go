@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"testing"
 	"time"
 )
@@ -50,37 +51,44 @@ func TestPack(t *testing.T) {
 }
 
 func TestUnpack(t *testing.T) {
-	conn, err := net.Dial("tcp", "127.0.0.1:8888")
-	if err != nil {
-		fmt.Println("Error listening:", err.Error())
-		return
-	}
-	defer conn.Close()
-
-	for {
-		data, err := receive(conn)
-		if err != nil {
-			fmt.Println("Error receiving:", err.Error())
-			return
-		}
-		fmt.Println(string(data))
+	var group sync.WaitGroup
+	group.Add(10)
+	for i := 0; i < 10; i++ {
 		go func() {
-			var i = 0
+			conn, err := net.Dial("tcp", "127.0.0.1:8888")
+			if err != nil {
+				fmt.Println("Error listening:", err.Error())
+				return
+			}
+			defer conn.Close()
+
 			for {
-				time.Sleep(time.Second)
-				i++
-				log.Println(1)
-				write, err := conn.Write(pack([]byte("hello world")))
+				data, err := receive(conn)
 				if err != nil {
-					log.Println(write, err)
+					fmt.Println("Error receiving:", err.Error())
 					return
 				}
+				fmt.Println(string(data))
+				go func() {
+					var i = 0
+					for {
+						time.Sleep(time.Second)
+						i++
+						log.Println(1)
+						write, err := conn.Write(pack([]byte("abcdefghijklmnopqrstuvwxyz")))
+						if err != nil {
+							log.Println(write, err)
+							return
+						}
 
+					}
+				}()
+				if err != nil {
+					fmt.Println("Error sending:", err.Error())
+					return
+				}
 			}
 		}()
-		if err != nil {
-			fmt.Println("Error sending:", err.Error())
-			return
-		}
 	}
+	group.Wait()
 }

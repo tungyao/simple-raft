@@ -47,7 +47,7 @@ type Node struct {
 	Timeout      int      `yaml:"timeout" json:"timeout"` // 心跳间隔
 	LastLoseTime int64    // 上次收到心跳时间
 	Channel      chan int
-	Message      chan string
+	Message      chan []byte
 	LogIndex     uint64
 	TermIndex    uint64
 	IsVote       bool // 在当前任期是不是已经投了票
@@ -99,6 +99,7 @@ func NewNode(selfNode *Node) {
 	selfNode.Net.self = selfNode
 	selfNode.Timer.self = selfNode
 	selfNode.Vote.self = selfNode
+	selfNode.Message = make(chan []byte, 1024)
 	go selfNode.Timer.Run()
 	defer fs.Close()
 

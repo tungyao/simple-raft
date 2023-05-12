@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -215,7 +216,15 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 				if v, ok := mainNe.self.allNode[mainNe.self.MasterName]; ok {
 					v.Net.DialConn.Write(pack([]byte{0, 0, 4}))
 				}
+			case 9: // 接受到外部的信息
+				atomic.AddUint64(&mainNe.self.LogIndex, 1)
+				mainNe.self.Message <- data[8:]
+			case 10: // 接收到master的复制日志
+
+			case 11: // 收到节点反馈
+
 			}
+
 		}(data)
 	}
 
