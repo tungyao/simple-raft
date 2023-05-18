@@ -220,14 +220,38 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 				atomic.AddUint64(&mainNe.self.LogIndex, 1)
 				mainNe.self.Message <- data[8:]
 			case 10: // 接收到master的复制日志
-
+				logIndex := uint82Uint64(data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10])
+				mainNe.self.Data[logIndex] = data[11:]
+				send := []byte{0, 0, 11}
+				send = append(send, data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10])
+				conn.Write(pack(send))
+				log.Println("接受到master日志", string(data[11:]))
 			case 11: // 收到节点反馈
-
+				logIndex := uint82Uint64(data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10])
+				// 计算和判断写否要写入持久存储
+				if v, ok := mainNe.self.Buff[logIndex]; ok && v.vote > len(mainNe.self.allNode) {
+					mainNe.self.Data[logIndex] = v.data
+				}
 			}
 
 		}(data)
 	}
 
+}
+
+func (ne *network) Broadcast(data *[]byte) {
+	n := atomic.AddUint64(&ne.self.LogIndex, 1)
+	da := []byte{0, 0, 10}
+	da = uint642uint8(n, da)
+	da = append(da, *data...)
+	// 提交到缓存区
+	ne.self.Buff[n] = &BuffData{
+		data: *data,
+		vote: 0,
+	}
+	for _, node := range ne.self.allNode {
+		node.Net.ListenConn.Write(pack(da))
+	}
 }
 
 // HeartRequest 向其他节点发送心跳 以超时事件最短的为发送时间

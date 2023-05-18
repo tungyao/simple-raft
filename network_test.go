@@ -92,3 +92,10 @@ func TestUnpack(t *testing.T) {
 	}
 	group.Wait()
 }
+
+func Test_network_Broadcast(t *testing.T) {
+	n := network{}
+
+	ss := []byte("hello world")
+	n.Broadcast(&ss)
+}

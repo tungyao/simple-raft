@@ -57,6 +57,13 @@ type Node struct {
 	allNode      map[string]*Node
 	MasterName   string
 	Vote         *Vote
+	Data         map[uint64][]byte
+	Buff         map[uint64]*BuffData
+}
+
+type BuffData struct {
+	data []byte
+	vote int
 }
 
 func (n *Node) Change() {
@@ -93,6 +100,7 @@ func NewNode(selfNode *Node) {
 	err = yaml.Unmarshal(data, &selfNode)
 	if err != nil {
 	}
+	selfNode.Data = make(map[uint64][]byte)
 	selfNode.Net = new(network)
 	selfNode.Timer = new(timer)
 	selfNode.Vote = new(Vote)
