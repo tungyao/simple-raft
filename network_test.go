@@ -94,8 +94,18 @@ func TestUnpack(t *testing.T) {
 }
 
 func Test_network_Broadcast(t *testing.T) {
-	n := network{}
-
-	ss := []byte("hello world")
-	n.Broadcast(&ss)
+	//n := network{}
+	conn, err := net.Dial("tcp", "192.168.7.78:3002")
+	if err != nil {
+		log.Println(err)
+	}
+	_, err = conn.Write(pack([]byte{0, 0, 9, 104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100}))
+	if err != nil {
+		log.Println(err)
+	}
+	conn.Close()
+	//n.Broadcast(&ss)
+}
+func Test_Word(t *testing.T) {
+	log.Println([]byte("hello world"))
 }

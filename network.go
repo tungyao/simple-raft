@@ -217,8 +217,8 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 					v.Net.DialConn.Write(pack([]byte{0, 0, 4}))
 				}
 			case 9: // 接受到外部的信息
-				atomic.AddUint64(&mainNe.self.LogIndex, 1)
-				mainNe.self.Message <- data[8:]
+				//atomic.AddUint64(&mainNe.self.LogIndex, 1)
+				mainNe.Broadcast(data[3:])
 			case 10: // 接收到master的复制日志
 				logIndex := uint82Uint64(data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10])
 				mainNe.self.Data[logIndex] = data[11:]
@@ -229,7 +229,7 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 			case 11: // 收到节点反馈
 				logIndex := uint82Uint64(data[3], data[4], data[5], data[6], data[7], data[8], data[9], data[10])
 				// 计算和判断写否要写入持久存储
-				if v, ok := mainNe.self.Buff[logIndex]; ok && v.vote > len(mainNe.self.allNode) {
+				if v, ok := mainNe.self.Buff[logIndex]; ok && v.vote > len(mainNe.self.allNode)/2 {
 					mainNe.self.Data[logIndex] = v.data
 				}
 			}
@@ -239,14 +239,14 @@ func handleConnection(mainNe *network, conn net.Conn, fun func()) {
 
 }
 
-func (ne *network) Broadcast(data *[]byte) {
+func (ne *network) Broadcast(data []byte) {
 	n := atomic.AddUint64(&ne.self.LogIndex, 1)
 	da := []byte{0, 0, 10}
 	da = uint642uint8(n, da)
-	da = append(da, *data...)
+	da = append(da, data...)
 	// 提交到缓存区
 	ne.self.Buff[n] = &BuffData{
-		data: *data,
+		data: data,
 		vote: 0,
 	}
 	for _, node := range ne.self.allNode {

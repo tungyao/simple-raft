@@ -101,6 +101,7 @@ func NewNode(selfNode *Node) {
 	if err != nil {
 	}
 	selfNode.Data = make(map[uint64][]byte)
+	selfNode.Buff = make(map[uint64]*BuffData)
 	selfNode.Net = new(network)
 	selfNode.Timer = new(timer)
 	selfNode.Vote = new(Vote)
